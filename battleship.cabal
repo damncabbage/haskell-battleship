@@ -12,11 +12,12 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  build-depends:       base           >= 4.7 && < 4.8
   default-language:    Haskell2010
   ghc-options:         -Wall
   hs-source-dirs:      src
   exposed-modules:     Data.Battleship
+  build-depends:       base           >= 4.7 && < 4.8
+                     , random
 
 test-suite tests
   default-language:    Haskell2010
