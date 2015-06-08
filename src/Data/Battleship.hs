@@ -1,7 +1,6 @@
 module Data.Battleship where
 
 import Data.Maybe
-import Prelude    (Int,String,Bool(..),Show)
 
 -- TODO: Custom Shows
 type Position = (Int,Int)

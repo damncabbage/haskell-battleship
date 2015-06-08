@@ -17,7 +17,6 @@ library
   ghc-options:         -Wall
   hs-source-dirs:      src
   exposed-modules:     Data.Battleship
-  extensions:          NoImplicitPrelude
 
 test-suite tests
   default-language:    Haskell2010
