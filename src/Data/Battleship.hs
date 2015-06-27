@@ -106,8 +106,10 @@ placeShip b p
   where
     validPlacement b p =
       inBounds (boardDimensions b) p && not (any (overlapping p) (placements b))
-    inBounds b pnew@(ship,coords,dir) =
-      True -- error "TODO"
+    inBounds (bw,bh) (shipDimensions -> (sx,sy), (cx,cy), dir) =
+      case dir of
+        Downward  -> cx > 0 && cy > 0 && (cx + sx) - 1 <= bw && (cy + sy) - 1 <= bh
+        Rightward -> cx > 0 && cy > 0 && (cx + sy) - 1 <= bw && (cy + sx) - 1 <= bh
     overlapping p1 p2 =
       let x1 = fst . topLeft
           x2 = fst . bottomRight
@@ -116,10 +118,10 @@ placeShip b p
       in (x1 p1 < x2 p2) && (x2 p1 > x1 p2) &&
          (y1 p1 < y2 p2) && (y2 p1 > y1 p2)
     topLeft (_,p,_) = p
-    bottomRight (shipDimensions -> (dx,dy), (cx,cy), dir) =
+    bottomRight (shipDimensions -> (sx,sy), (cx,cy), dir) =
       case dir of
-        Downward  -> (cx + dx, cy + dy)
-        Rightward -> (cx + dy, cy + dx)
+        Downward  -> (cx + sx, cy + sy)
+        Rightward -> (cx + sy, cy + sx)
 
 boardFromList :: Board -> [ShipPlacement] -> Maybe Board
 boardFromList = foldM placeShip
