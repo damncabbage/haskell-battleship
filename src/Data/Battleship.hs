@@ -108,8 +108,8 @@ placeShip b p
       inBounds (boardDimensions b) p && not (any (overlapping p) (placements b))
     inBounds (bw,bh) (shipDimensions -> (sx,sy), (cx,cy), dir) =
       case dir of
-        Downward  -> cx > 0 && cy > 0 && (cx + sx) - 1 <= bw && (cy + sy) - 1 <= bh
-        Rightward -> cx > 0 && cy > 0 && (cx + sy) - 1 <= bw && (cy + sx) - 1 <= bh
+        Downward  -> cx > 0 && cy > 0 && cx + (sx - 1) <= bw && cy + (sy - 1) <= bh
+        Rightward -> cx > 0 && cy > 0 && cx + (sy - 1) <= bw && cy + (sx - 1) <= bh
     overlapping p1 p2 =
       let x1 = fst . topLeft
           x2 = fst . bottomRight
