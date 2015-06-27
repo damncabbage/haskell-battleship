@@ -9,12 +9,13 @@
 -- TODO: Positive a / getPositive for generation of coords
 
 module Data.Battleship (
-  Direction(..), Result, Player, Coords, Ship, ShipPlacement, Shot, Board, Game, Dimensions,
-  placements, -- TODO: Exporting record fields is unsafe.
+  Direction(..), Result, Player(..), Coords, Ship, ShipPlacement, Shot, Board, Game, Dimensions,
+  placements, shots, -- TODO: Exporting record fields is unsafe.
+  board1, board2, -- TODO: Exporting record fields is unsafe.
   defaultShips, shipsFromList,
-  mkEmptyBoard, mkRandomBoard, -- mkCoords,
+  mkEmptyBoard, mkRandomBoard, mkGame, -- mkCoords,
   placeShip, attack, finished, winner,
-  boardFromList, boardLargeEnoughForShips
+  placedBoardFromList, attacksFromList, boardLargeEnoughForShips
 ) where
 
 import Data.Maybe
@@ -24,14 +25,14 @@ import Control.Monad
 import System.Random
 
 -- TODO: Custom Shows
-data Direction = Downward | Rightward  deriving(Show,Eq)
-data Result      = Hit Ship | Miss       deriving(Show)
-data Player      = Player1 | Player2     deriving(Show)
+data Direction = Downward | Rightward deriving(Show,Eq)
+data Result    = Hit Ship | Miss      deriving(Show,Eq)
+data Player    = Player1 | Player2    deriving(Show,Eq)
 -- data Coords      = Coords Int Int        deriving(Show)
-data Ship        = Ship {
-                     name           :: String,
-                     shipDimensions :: Dimensions
-                   } deriving(Show,Eq)
+data Ship      = Ship {
+                   name           :: String,
+                   shipDimensions :: Dimensions
+                 } deriving(Show,Eq)
 
 type Dimensions      = (Int,Int)
 type Coords          = (Int,Int)
@@ -45,8 +46,10 @@ data Board = Board {
                validShips      :: [Ship]
              } deriving(Show)
 data Game  = Game {
-               player1    :: (Player,Board),
-               player2    :: (Player,Board)
+               player1 :: Player,
+               board1  :: Board,
+               player2 :: Player,
+               board2  :: Board
              } deriving(Show)
 
 -- TODO: One of the few cases I'd consider using a fromJust.
@@ -91,6 +94,11 @@ mkRandomBoard dims ships gen = do
   board <- mkEmptyBoard dims ships
   error "TODO"
 
+mkGame :: (Player,Board) -> (Player,Board) -> Maybe Game
+mkGame (p1,b1) (p2,b2)
+  | p1 /= p2  = Just Game { player1 = p1, board1 = b1, player2 = p2, board2 = b2 }
+  | otherwise = Nothing
+
 -- mkCoords :: (Int,Int) -> Board -> Maybe Coords
 -- mkCoords coords@(cx,cy) (boardDimensions -> (bx,by))
 --     | valid cx bx && valid cy by = Just (Coords cx cy)
@@ -123,11 +131,14 @@ placeShip b p
         Downward  -> (cx + sx, cy + sy)
         Rightward -> (cx + sy, cy + sx)
 
-boardFromList :: Board -> [ShipPlacement] -> Maybe Board
-boardFromList = foldM placeShip
+placedBoardFromList :: Board -> [ShipPlacement] -> Maybe Board
+placedBoardFromList = foldM placeShip
 
-attack :: Game -> Player -> Shot -> Game
+attack :: Game -> Shot -> Maybe Game
 attack = error "TODO"
+
+attacksFromList :: Game -> [Shot] -> Maybe Game
+attacksFromList = foldM attack
 
 finished :: Game -> Bool
 finished = error "TODO"

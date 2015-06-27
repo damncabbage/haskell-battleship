@@ -49,16 +49,14 @@ main = hspec $ do
       (B.boardLargeEnoughForShips (5,2) ships) `shouldBe` False
 
   describe "placeShip" $ do
-    let ships = fromJust $ B.shipsFromList [
-                             ("A", (1,5)),
-                             ("B", (2,4)),
-                             ("C", (1,4))
-                           ]
+    let ships = fromJust $ B.shipsFromList [ ("A", (1,5))
+                                           , ("B", (2,4))
+                                           , ("C", (1,4))
+                                           ]
     let initialBoard  = fromJust $ B.mkEmptyBoard (6,6) ships
-    let boardWith     = B.boardFromList initialBoard
-    let defPlacements = [
-                          (ships !! 0, (1,1), B.Downward),
-                          (ships !! 1, (2,3), B.Rightward)
+    let boardWith     = B.placedBoardFromList initialBoard
+    let defPlacements = [ (ships !! 0, (1,1), B.Downward)
+                        , (ships !! 1, (2,3), B.Rightward)
                         ]
 
 
@@ -79,3 +77,15 @@ main = hspec $ do
 
     -- prop "overlapping ships produces a failure result" $ do
     --   \x -> showBoard x === show (fromJust (mkEmptyBoard (10,10) []))
+
+  describe "attack" $ do
+    let board1 = fromJust $ B.mkEmptyBoard (10,10) B.defaultShips
+    let board2 = fromJust $ B.mkEmptyBoard (10,10) B.defaultShips
+    let initialGame = fromJust $ B.mkGame (B.Player1,board1) (B.Player2,board2)
+
+    it "allows valid shots" $ do
+      let shots = [ (B.Player1,(3,3))
+                  , (B.Player2,(3,3))
+                  ]
+      let game = B.attacksFromList initialGame shots
+      (maybe [] (B.shots . B.board1) game) `shouldBe` []
