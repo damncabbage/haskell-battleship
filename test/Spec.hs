@@ -35,16 +35,6 @@ showBoard = show
 main :: IO ()
 main = hspec $ do
 
-  it "hello world" $ do
-    "hello" `shouldBe` "hello"
-
-  prop "quickcheck hello world" $
-    \x -> (read . show) x === (x :: String)
-
-  --describe "placeShip" $ do
-  --  prop "overlapping ships produces a failure result" $ do
-  --    \x -> showBoard x === show (fromJust (mkEmptyBoard (10,10) []))
-
   describe "boardLargeEnoughForShips" $ do
     it "uses the longest ship and ship area to determine the minimum size" $ do
       let ships = fromJust $ B.shipsFromList [
@@ -86,3 +76,6 @@ main = hspec $ do
     it "disallows overlapping placement" $ do
       let p = defPlacements ++ [(ships !! 2, (2,1), B.Downward)] -- Overlapping Ship B
       (maybe [] (B.placements) (boardWith p)) `shouldBe` []
+
+    -- prop "overlapping ships produces a failure result" $ do
+    --   \x -> showBoard x === show (fromJust (mkEmptyBoard (10,10) []))
