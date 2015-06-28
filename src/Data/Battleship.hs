@@ -185,7 +185,7 @@ placedBoardFromList = foldM placeShip
 
 attack :: Game -> Shot -> Maybe Game
 attack g (p,c) =
-    if inBounds board c && notRepeated && isHit then
+    if inBounds board c && notRepeated && isHit && correctPlayer then
       -- HACK: Record setter case-matching repetition I'm not sure can be addressed without lenses.
       case p of
         Player1 -> Just g { board2 = appendShot }
@@ -195,6 +195,7 @@ attack g (p,c) =
   where
     inBounds (boardDimensions -> (bw,bh)) (cx,cy) = True -- TODO
     notRepeated = True -- TODO: Implement, add easy property
+    correctPlayer = error "TODO" -- TODO: A hint at maybe the player1/2 and board1/2 structure isn't the greatest. Likely needs a currentPlayer field instead.
     ships       = placements board
     result      = maybe Miss Hit (find (elem c . shipPlacementToCoords) ships)
     isHit       = case result of (Hit _) -> True; Miss -> False
