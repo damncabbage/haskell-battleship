@@ -1,4 +1,4 @@
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ViewPatterns, OverloadedStrings #-}
 
 -- TODO: Fold for placements on a board
 -- TODO: Lazy DAG of ship placement possibilities
@@ -50,8 +50,8 @@ import Data.Monoid
 import Data.List (maximum)
 import Control.Monad
 import System.Random
+import Text.Printf
 
--- TODO: Custom Shows
 data Direction = Downward | Rightward deriving(Show,Eq)
 data Result    = Hit Ship | Miss      deriving(Show,Eq)
 data Player    = Player1 | Player2    deriving(Show,Eq)
@@ -69,15 +69,30 @@ type Shot            = (Player,Coords)
 data Board = Board {
                boardDimensions :: Dimensions,
                placements      :: [ShipPlacement],
-               shots           :: [(Shot,Result)],
+               shots           :: [(Player,Coords,Result)],
                validShips      :: [Ship]
-             } deriving(Show)
+             }
 data Game  = Game {
                player1 :: Player,
                board1  :: Board,
                player2 :: Player,
                board2  :: Board
              } deriving(Show)
+
+instance Show Board where
+  show b =
+    unlines $ [header] <> (map row [1..h])
+    where
+      w          = (fst . boardDimensions) b
+      h          = (snd . boardDimensions) b
+      itemWidth  = 1 + (length $ show h)
+      item       = printf ("%-" <> (show itemWidth) <> "s")
+      tlPadding  = replicate itemWidth ' '
+      header     = tlPadding <> (concatMap (item . show) [1..w])
+      row n      = concat [item (show n), concatMap (cell n) [1..w]]
+      cell y x   = (\c -> item [c]) $ ['A','B','X','·','·','·'] !! (((x `mod` 3) + (y `mod` 9)) `mod` 6)
+      -- TODO: Look for Shots, then Ships, otherwise default to the dot.
+
 
 -- TODO: One of the few cases I'd consider using a fromJust.
 defaultShips :: [Ship]
