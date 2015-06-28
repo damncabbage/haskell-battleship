@@ -37,6 +37,7 @@ module Data.Battleship (
   boardLargeEnoughForShips,
   placedBoardFromList,
   attacksFromList,
+  boardFinished,
 
   -- HACK TODO: Exporting record fields is /not/ safe.
   board1,
@@ -47,14 +48,14 @@ module Data.Battleship (
 
 import Data.Maybe
 import Data.Monoid
-import Data.List (maximum)
+import Data.List (find,intersect,maximum)
 import Control.Monad
 import System.Random
 import Text.Printf
 
-data Direction = Downward | Rightward deriving(Show,Eq)
-data Result    = Hit Ship | Miss      deriving(Show,Eq)
-data Player    = Player1 | Player2    deriving(Show,Eq)
+data Direction = Downward | Rightward     deriving(Show,Eq)
+data Result    = Hit ShipPlacement | Miss deriving(Show,Eq)
+data Player    = Player1 | Player2        deriving(Show,Eq)
 data Ship      = Ship {
                    name           :: String,
                    initial        :: Char,
@@ -183,13 +184,47 @@ placedBoardFromList :: Board -> [ShipPlacement] -> Maybe Board
 placedBoardFromList = foldM placeShip
 
 attack :: Game -> Shot -> Maybe Game
-attack = error "TODO"
+attack g (p,c) =
+    if inBounds board c && notRepeated && isHit then
+      -- HACK: Record setter case-matching repetition I'm not sure can be addressed without lenses.
+      case p of
+        Player1 -> Just g { board2 = appendShot }
+        Player2 -> Just g { board1 = appendShot }
+    else
+      Nothing
+  where
+    inBounds (boardDimensions -> (bw,bh)) (cx,cy) = True -- TODO
+    notRepeated = True -- TODO: Implement, add easy property
+    ships       = placements board
+    result      = maybe Miss Hit (find (elem c . shipPlacementToCoords) ships)
+    isHit       = case result of (Hit _) -> True; Miss -> False
+    appendShot  = board { shots = (shots board) <> [(p,c,result)] }
+    board       = case p of
+      Player1 -> board2 g
+      Player2 -> board1 g
 
 attacksFromList :: Game -> [Shot] -> Maybe Game
 attacksFromList = foldM attack
 
 finished :: Game -> Bool
-finished = error "TODO"
+finished g = boardFinished (board1 g) || boardFinished (board2 g)
 
 winner :: Game -> Maybe Player
-winner = error "TODO"
+winner g
+  | boardFinished (board1 g) = Just (player1 g)
+  | boardFinished (board2 g) = Just (player2 g)
+  | otherwise                = Nothing
+
+boardFinished :: Board -> Bool
+boardFinished b =
+    (shotSquares `intersect` shipSquares) == shipSquares -- All ships covered by shots?
+  where
+    shotSquares     = map (\(_,c,_) -> c) (shots b)
+    shipSquares     = concatMap shipPlacementToCoords (placements b)
+
+shipPlacementToCoords :: ShipPlacement -> [Coords]
+shipPlacementToCoords (shipDimensions -> (sx,sy), (cx,cy), dir) =
+  let cartesian xs ys = [(x,y) | x <- xs, y <- ys]
+  in case dir of
+    Downward  -> cartesian [cx..(cx+sx)] [cy..(cy+sy)]
+    Rightward -> cartesian [cx..(cx+sy)] [cy..(cy+sx)]
