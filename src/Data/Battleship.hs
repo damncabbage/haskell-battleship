@@ -9,13 +9,40 @@
 -- TODO: Positive a / getPositive for generation of coords
 
 module Data.Battleship (
-  Direction(..), Result, Player(..), Coords, Ship, ShipPlacement, Shot, Board, Game, Dimensions,
-  placements, shots, -- TODO: Exporting record fields is unsafe.
-  board1, board2, -- TODO: Exporting record fields is unsafe.
-  defaultShips, shipsFromList,
-  mkEmptyBoard, mkRandomBoard, mkGame, -- mkCoords,
-  placeShip, attack, finished, winner,
-  placedBoardFromList, attacksFromList, boardLargeEnoughForShips
+  -- Types and (safe) constructors
+  Board,
+  Coords,
+  Dimensions,
+  Direction(..),
+  Game,
+  Player(..),
+  Result,
+  Ship,
+  ShipPlacement,
+  Shot,
+
+  -- Headlining Library Functions
+  mkEmptyBoard,
+  mkRandomBoard,
+  mkGame,
+  placeShip,
+  attack,
+  finished,
+  winner,
+
+  -- Helpers (for tests, but still safe)
+  defaultShips,
+  defaultDimensions,
+  shipsFromList,
+  boardLargeEnoughForShips,
+  placedBoardFromList,
+  attacksFromList,
+
+  -- HACK TODO: Exporting record fields is /not/ safe.
+  board1,
+  board2,
+  placements,
+  shots
 ) where
 
 import Data.Maybe
@@ -28,7 +55,6 @@ import System.Random
 data Direction = Downward | Rightward deriving(Show,Eq)
 data Result    = Hit Ship | Miss      deriving(Show,Eq)
 data Player    = Player1 | Player2    deriving(Show,Eq)
--- data Coords      = Coords Int Int        deriving(Show)
 data Ship      = Ship {
                    name           :: String,
                    initial        :: Char,
