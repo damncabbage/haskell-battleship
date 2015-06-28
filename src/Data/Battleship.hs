@@ -155,7 +155,6 @@ mkGame (p1,b1) (p2,b2)
 --   where
 --     valid c b = c > 0 && c <= b
 
--- (Ship,Coords,Direction)
 placeShip :: Board -> ShipPlacement -> Maybe Board
 placeShip b p
     | validPlacement b p = Just b { placements = placements b <> [p] }
