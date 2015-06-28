@@ -63,6 +63,9 @@ defaultShips = fromMaybe [] $ shipsFromList
                  , ("Patrol",     'P', (1,1))
                  ]
 
+defaultDimensions :: Dimensions
+defaultDimensions = (10,10)
+
 shipsFromList :: [(String,Char,Coords)] -> Maybe [Ship]
 shipsFromList = sequence . map (\(n,i,p) -> mkShip n i p)
 
