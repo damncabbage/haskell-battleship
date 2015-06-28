@@ -31,6 +31,7 @@ data Player    = Player1 | Player2    deriving(Show,Eq)
 -- data Coords      = Coords Int Int        deriving(Show)
 data Ship      = Ship {
                    name           :: String,
+                   initial        :: Char,
                    shipDimensions :: Dimensions
                  } deriving(Show,Eq)
 
@@ -54,21 +55,25 @@ data Game  = Game {
 
 -- TODO: One of the few cases I'd consider using a fromJust.
 defaultShips :: [Ship]
-defaultShips = fromMaybe [] $ shipsFromList [
-                 ("Carrier",    (1,5)),
-                 ("Battleship", (1,4)),
-                 ("Submarine",  (1,3)),
-                 ("Cruiser",    (1,2)),
-                 ("Patrol",     (1,1))
-               ]
+defaultShips = fromMaybe [] $ shipsFromList
+                 [ ("Carrier",    'C', (1,5))
+                 , ("Battleship", 'B', (1,4))
+                 , ("Submarine",  'S', (1,3))
+                 , ("Cruiser",    'R', (1,2))
+                 , ("Patrol",     'P', (1,1))
+                 ]
 
-shipsFromList :: [(String,(Int,Int))] -> Maybe [Ship]
-shipsFromList = sequence . map (\(n,p) -> mkShip n p)
+shipsFromList :: [(String,Char,Coords)] -> Maybe [Ship]
+shipsFromList = sequence . map (\(n,i,p) -> mkShip n i p)
 
-mkShip :: String -> (Int,Int) -> Maybe Ship
-mkShip n d@(x,y)
-  | x > 0 && y > 0 && length n > 0 = Just Ship { name = n, shipDimensions = d }
-  | otherwise                      = Nothing
+mkShip :: String -> Char -> (Int,Int) -> Maybe Ship
+mkShip n i d
+  | vDims d && vInitial i && vName n = Just Ship { name = n, initial = i, shipDimensions = d }
+  | otherwise                        = Nothing
+  where
+    vDims (x,y) = x > 0 && y > 0
+    vInitial i  = elem i (['A'..'W'] <> ['Y'..'Z']) -- All except X
+    vName n     = length n > 0
 
 -- TODO: Appears to hold up for everything I've tossed at it. Needs a property test,
 --       but it's damn hard to come up with a generator producing non-overlapping ships.

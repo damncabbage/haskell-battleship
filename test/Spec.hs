@@ -37,21 +37,21 @@ main = hspec $ do
 
   describe "boardLargeEnoughForShips" $ do
     it "uses the longest ship and ship area to determine the minimum size" $ do
-      let ships = fromJust $ B.shipsFromList [
-                               ("Carrier",    (1,5)),
-                               ("Battleship", (1,4)),
-                               ("Submarine",  (1,3)),
-                               ("Cruiser",    (1,2)),
-                               ("Patrol",     (1,1))
-                             ]
+      let ships = fromJust $ B.shipsFromList
+                    [ ("Carrier",    'C', (1,5))
+                    , ("Battleship", 'B', (1,4))
+                    , ("Submarine",  'S', (1,3))
+                    , ("Cruiser",    'R', (1,2))
+                    , ("Patrol",     'P', (1,1))
+                    ]
       (B.boardLargeEnoughForShips (5,3) ships) `shouldBe` True
       (B.boardLargeEnoughForShips (4,3) ships) `shouldBe` False
       (B.boardLargeEnoughForShips (5,2) ships) `shouldBe` False
 
   describe "placeShip" $ do
-    let ships = fromJust $ B.shipsFromList [ ("A", (1,5))
-                                           , ("B", (2,4))
-                                           , ("C", (1,4))
+    let ships = fromJust $ B.shipsFromList [ ("AA", 'A', (1,5))
+                                           , ("BB", 'B', (2,4))
+                                           , ("CC", 'C', (1,4))
                                            ]
     let initialBoard  = fromJust $ B.mkEmptyBoard (6,6) ships
     let boardWith     = B.placedBoardFromList initialBoard
