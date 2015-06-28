@@ -88,4 +88,4 @@ main = hspec $ do
                   , (B.Player2,(3,3))
                   ]
       let game = B.attacksFromList initialGame shots
-      (maybe [] (B.shots . B.board1) game) `shouldBe` []
+      (maybe [] (B.shots . B.board1) game) `shouldSatisfy` (not . null)
