@@ -19,7 +19,6 @@ module Data.Battleship (
   Result,
   Ship,
   ShipPlacement,
-  Shot,
 
   -- Headlining Library Functions
   mkEmptyBoard,
@@ -65,19 +64,19 @@ data Ship      = Ship {
 type Dimensions      = (Int,Int)
 type Coords          = (Int,Int)
 type ShipPlacement   = (Ship,Coords,Direction)
-type Shot            = (Player,Coords)
 
 data Board = Board {
                boardDimensions :: Dimensions,
                placements      :: [ShipPlacement],
-               shots           :: [(Player,Coords,Result)],
+               shots           :: [(Coords,Result)],
                validShips      :: [Ship]
              }
 data Game  = Game {
-               player1 :: Player,
-               board1  :: Board,
-               player2 :: Player,
-               board2  :: Board
+               currentPlayer :: Player,
+               player1       :: Player,
+               board1        :: Board,
+               player2       :: Player,
+               board2        :: Board
              } deriving(Show)
 
 instance Show Board where
@@ -90,9 +89,13 @@ instance Show Board where
       item       = printf ("%-" <> (show itemWidth) <> "s")
       tlPadding  = replicate itemWidth ' '
       header     = tlPadding <> (concatMap (item . show) [1..w])
-      row n      = concat [item (show n), concatMap (cell n) [1..w]]
-      cell y x   = (\c -> item [c]) $ ['A','B','X','·','·','·'] !! (((x `mod` 3) + (y `mod` 9)) `mod` 6)
-      -- TODO: Look for Shots, then Ships, otherwise default to the dot.
+      row y      = concat [item (show y), (concatMap (\x -> cellItem (x,y)) [1..w])]
+      cellItem c = item [cell c]
+      findPlacement c =
+        find (elem c . shipPlacementToCoords) (placements b)
+      cell c
+        | elem c (shotsCoords b) = 'x'
+        | otherwise = maybe '·' (initial . shipFromPlacement) (findPlacement c)
 
 
 -- TODO: One of the few cases I'd consider using a fromJust.
@@ -146,7 +149,12 @@ mkRandomBoard dims ships gen = do
 
 mkGame :: (Player,Board) -> (Player,Board) -> Maybe Game
 mkGame (p1,b1) (p2,b2)
-  | p1 /= p2  = Just Game { player1 = p1, board1 = b1, player2 = p2, board2 = b2 }
+  | p1 /= p2  = Just Game { currentPlayer = p1 -- Just default to the first, whatever it is.
+                          , player1 = p1
+                          , board1  = b1
+                          , player2 = p2
+                          , board2  = b2
+                          }
   | otherwise = Nothing
 
 -- mkCoords :: (Int,Int) -> Board -> Maybe Coords
@@ -183,28 +191,29 @@ placeShip b p
 placedBoardFromList :: Board -> [ShipPlacement] -> Maybe Board
 placedBoardFromList = foldM placeShip
 
-attack :: Game -> Shot -> Maybe Game
-attack g (p,c) =
-    if inBounds board c && notRepeated && isHit && correctPlayer then
-      -- HACK: Record setter case-matching repetition I'm not sure can be addressed without lenses.
-      case p of
-        Player1 -> Just g { board2 = appendShot }
-        Player2 -> Just g { board1 = appendShot }
-    else
-      Nothing
+attack :: Game -> Coords -> Maybe Game
+attack g c
+    | inBounds board c && notRepeated && (not $ finished g) =
+        Just appendedShotAndSwappedPlayer
+    | otherwise =
+        Nothing
   where
-    inBounds (boardDimensions -> (bw,bh)) (cx,cy) = True -- TODO
-    notRepeated = True -- TODO: Implement, add easy property
-    correctPlayer = error "TODO" -- TODO: A hint at maybe the player1/2 and board1/2 structure isn't the greatest. Likely needs a currentPlayer field instead.
+    appendedShotAndSwappedPlayer
+      | (currentPlayer g) == (player1 g) = g { board1 = appendShot, currentPlayer = player2 g }
+      | (currentPlayer g) == (player2 g) = g { board2 = appendShot, currentPlayer = player1 g }
+    inBounds (boardDimensions -> (bw,bh)) (cx,cy) =
+      (cx >= 1) && (cx <= bw) &&
+      (cy >= 1) && (cy <= bh)
+    notRepeated = notElem c (shotsCoords board)
     ships       = placements board
     result      = maybe Miss Hit (find (elem c . shipPlacementToCoords) ships)
     isHit       = case result of (Hit _) -> True; Miss -> False
-    appendShot  = board { shots = (shots board) <> [(p,c,result)] }
-    board       = case p of
-      Player1 -> board2 g
-      Player2 -> board1 g
+    appendShot  = board { shots = (shots board) <> [(c,result)] }
+    board
+      | (currentPlayer g) == (player1 g) = board1 g
+      | (currentPlayer g) == (player2 g) = board2 g
 
-attacksFromList :: Game -> [Shot] -> Maybe Game
+attacksFromList :: Game -> [Coords] -> Maybe Game
 attacksFromList = foldM attack
 
 finished :: Game -> Bool
@@ -220,12 +229,18 @@ boardFinished :: Board -> Bool
 boardFinished b =
     (shotSquares `intersect` shipSquares) == shipSquares -- All ships covered by shots?
   where
-    shotSquares     = map (\(_,c,_) -> c) (shots b)
-    shipSquares     = concatMap shipPlacementToCoords (placements b)
+    shotSquares = shotsCoords b
+    shipSquares = concatMap shipPlacementToCoords (placements b)
 
 shipPlacementToCoords :: ShipPlacement -> [Coords]
 shipPlacementToCoords (shipDimensions -> (sx,sy), (cx,cy), dir) =
   let cartesian xs ys = [(x,y) | x <- xs, y <- ys]
   in case dir of
-    Downward  -> cartesian [cx..(cx+sx)] [cy..(cy+sy)]
-    Rightward -> cartesian [cx..(cx+sy)] [cy..(cy+sx)]
+    Downward  -> cartesian [cx..(cx+sx-1)] [cy..(cy+sy-1)]
+    Rightward -> cartesian [cx..(cx+sy-1)] [cy..(cy+sx-1)]
+
+shotsCoords :: Board -> [Coords]
+shotsCoords = map fst . shots
+
+shipFromPlacement :: ShipPlacement -> Ship
+shipFromPlacement (ship,_,_) = ship
