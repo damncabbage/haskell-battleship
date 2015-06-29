@@ -19,12 +19,12 @@ library
   build-depends:       base           >= 4.7 && < 4.8
                      , random
 
-test-suite tests
+test-suite spec
   default-language:    Haskell2010
   type:                exitcode-stdio-1.0
   ghc-options:         -Wall
   hs-source-dirs:      test
-  main-is:             tests.hs
+  main-is:             Spec.hs
   build-depends:       base           >= 4.7 && < 4.8
                      , battleship
                      , hspec          >= 1.8 && < 3
