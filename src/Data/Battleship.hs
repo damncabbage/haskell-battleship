@@ -127,7 +127,7 @@ mkShip n i d
 --       but it's damn hard to come up with a generator producing non-overlapping ships.
 boardLargeEnoughForShips :: Dimensions -> [Ship] -> Bool
 boardLargeEnoughForShips (x,y) ships =
-    (largestDim >= longestShip) && (x * y >= shipsArea)
+  (largestDim >= longestShip) && (x * y >= shipsArea)
   where
     largestDim  = max x y
     longestShip = (maximum . mconcat . map (pairToList . shipDimensions)) ships
@@ -157,17 +157,10 @@ mkGame (p1,b1) (p2,b2)
                           }
   | otherwise = Nothing
 
--- mkCoords :: (Int,Int) -> Board -> Maybe Coords
--- mkCoords coords@(cx,cy) (boardDimensions -> (bx,by))
---     | valid cx bx && valid cy by = Just (Coords cx cy)
---     | otherwise                  = Nothing
---   where
---     valid c b = c > 0 && c <= b
-
 placeShip :: Board -> ShipPlacement -> Maybe Board
 placeShip b p
-    | validPlacement b p = Just b { placements = placements b <> [p] }
-    | otherwise          = Nothing
+  | validPlacement b p = Just b { placements = placements b <> [p] }
+  | otherwise          = Nothing
   where
     validPlacement b p =
       inBounds (boardDimensions b) p && not (any (overlapping p) (placements b))
@@ -193,10 +186,9 @@ placedBoardFromList = foldM placeShip
 
 attack :: Game -> Coords -> Maybe Game
 attack g c
-    | inBounds board c && notRepeated && (not $ finished g) =
-        Just appendedShotAndSwappedPlayer
-    | otherwise =
-        Nothing
+  | inBounds board c && notRepeated && (not $ finished g) =
+      Just appendedShotAndSwappedPlayer
+  | otherwise = Nothing
   where
     appendedShotAndSwappedPlayer
       | (currentPlayer g) == (player1 g) = g { board1 = appendShot, currentPlayer = player2 g }
@@ -227,7 +219,7 @@ winner g
 
 boardFinished :: Board -> Bool
 boardFinished b =
-    (shotSquares `intersect` shipSquares) == shipSquares -- All ships covered by shots?
+  (shotSquares `intersect` shipSquares) == shipSquares -- All ships covered by shots?
   where
     shotSquares = shotsCoords b
     shipSquares = concatMap shipPlacementToCoords (placements b)
