@@ -79,13 +79,35 @@ main = hspec $ do
     --   \x -> showBoard x === show (fromJust (mkEmptyBoard (10,10) []))
 
   describe "attack" $ do
-    let board1 = fromJust $ B.mkEmptyBoard (10,10) B.defaultShips
-    let board2 = fromJust $ B.mkEmptyBoard (10,10) B.defaultShips
+    let ships = fromJust $ B.shipsFromList [ ("AA", 'A', (1,5))
+                                           , ("BB", 'B', (2,4))
+                                           , ("CC", 'C', (1,4))
+                                           ]
+    let initialBoard  = fromJust $ B.mkEmptyBoard B.defaultBoardDimensions ships
+    let boardWith     = B.placedBoardFromList initialBoard
+    let defPlacements = [ (ships !! 0, (1,1), B.Downward)
+                        , (ships !! 1, (2,3), B.Rightward)
+                        ]
+    let board1 = fromJust $ boardWith (defPlacements ++ [(ships !! 2, (6,1), B.Downward)])
+    let board2 = fromJust $ boardWith (defPlacements ++ [(ships !! 2, (2,2), B.Rightward)])
     let initialGame = fromJust $ B.mkGame (B.Player1,board1) (B.Player2,board2)
 
     it "allows valid shots" $ do
-      let shots = [ (B.Player1,(3,3))
-                  , (B.Player2,(3,3))
+      let shots = [ (3,3)
+                  , (3,3)
                   ]
       let game = B.attacksFromList initialGame shots
       (maybe [] (B.shots . B.board1) game) `shouldSatisfy` (not . null)
+
+    it "is an example game set of shots with some debug prints to rip out" $ do
+      let shots = [ (3,3)
+                  , (3,4)
+                  , (5,9)
+                  , (3,10)
+                  , (9,3)
+                  , (5,5)
+                  ]
+      let game = B.attacksFromList initialGame shots
+      print (B.board1 $ fromJust game)
+      print (B.board2 $ fromJust game)
+      show (B.board1 $ fromJust game) `shouldSatisfy` (not . null)
