@@ -120,7 +120,7 @@ mkShip n i d
   | otherwise                        = Nothing
   where
     vDims (x,y) = x > 0 && y > 0
-    vInitial i  = elem i (['A'..'W'] <> ['Y'..'Z']) -- All except X
+    vInitial i  = elem i ['A'..'Z']
     vName n     = length n > 0
 
 -- TODO: Appears to hold up for everything I've tossed at it. Needs a property test,
