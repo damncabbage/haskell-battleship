@@ -235,3 +235,36 @@ shotsCoords = map fst . shots
 
 shipFromPlacement :: ShipPlacement -> Ship
 shipFromPlacement (ship,_,_) = ship
+
+-- TODO: Depth-first search
+--       https://monadmadness.wordpress.com/2014/11/10/purely-functional-graph-search-algorithms/
+data Graph a = Node a [Graph a]
+instance Show a => Show (Graph a) where
+  show (Node x []) = "Node " <> (show x) <> " []"
+  show (Node x _)  = "Node " <> (show x) <> " [...]"
+
+sampleGraph = Node 1 [Node 2 [], Node 3 [Node 4 [], Node 5 []]]
+
+--       (b -> s -> [b])              -> Graph b     -> Maybe b
+--dfs :: (Board -> [Ship] -> [Board]) -> Graph Board -> Maybe Board
+--dfs p (Node b bs)
+--  | null (p b) = Just b
+--  | otherwise  = fmap (b:) . msum . map (dfs p) $ bs
+
+firstWalk :: (b -> p -> [b]) -> [p] -> Graph b -> Maybe b
+firstWalk _ []     (Node b [])     = Just b
+firstWalk _ (_:_)  (Node b [])     = Nothing
+firstWalk f (s:ss) (Node b (bf:_)) = firstWalk f ss (Node bf (step bf s)) -- Choose the first
+
+
+step :: Board -> Ship -> [Board]
+step board ship =
+  catMaybes $ map (placeShip board) permutations
+  where
+    (w,h) = boardDimensions board
+    permutations :: [ShipPlacement]
+    permutations = [ (ship, (1,1), Downward) -- TODO
+                   , (ship, (2,1), Downward)
+                   ]
+-- eg.
+-- step (fromJust $ mkEmptyBoard defaultBoardDimensions defaultShips) defaultShips
