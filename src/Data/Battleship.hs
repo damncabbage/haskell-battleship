@@ -83,8 +83,7 @@ instance Show Board where
   show b =
     unlines $ [header] <> (map row [1..h])
     where
-      w          = (fst . boardDimensions) b
-      h          = (snd . boardDimensions) b
+      (w,h)      = boardDimensions b
       itemWidth  = 1 + (length $ show h)
       item       = printf ("%-" <> (show itemWidth) <> "s")
       tlPadding  = replicate itemWidth ' '
