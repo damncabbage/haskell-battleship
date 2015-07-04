@@ -103,8 +103,8 @@ defaultShips = fromMaybe [] $ shipsFromList
                  [ ("Carrier",    'C', (1,5))
                  , ("Battleship", 'B', (1,4))
                  , ("Submarine",  'S', (1,3))
-                 , ("Cruiser",    'R', (1,2))
-                 , ("Patrol",     'P', (1,1))
+                 , ("Cruiser",    'R', (1,3))
+                 , ("Patrol",     'P', (1,2))
                  ]
 
 defaultBoardDimensions :: Dimensions
