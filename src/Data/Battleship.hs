@@ -146,7 +146,10 @@ mkEmptyBoard d s =
 mkRandomBoard :: Dimensions -> [Ship] -> (IO StdGen) -> Maybe Board
 mkRandomBoard dims ships gen = do
   board <- mkEmptyBoard dims ships
-  error "TODO"
+  depthFirstGraphSearch ordering (\b -> length(placements(b)) == length(validShips(b))) (graph board)
+  where
+    graph b = placementsGraph placementStep ships b
+    ordering = id
 
 mkGame :: (Player,Board) -> (Player,Board) -> Maybe Game
 mkGame (p1,b1) (p2,b2)
@@ -238,121 +241,43 @@ shotsCoords = map fst . shots
 shipFromPlacement :: ShipPlacement -> Ship
 shipFromPlacement (ship,_,_) = ship
 
--- TODO: Depth-first search
---       https://monadmadness.wordpress.com/2014/11/10/purely-functional-graph-search-algorithms/
-data Graph a = Node a [Graph a]
 
+-- Depth-first search bits
+data Graph a = Node a [Graph a]
 instance Show a => Show (Graph a) where
   show (Node x []) = "Node " <> (show x) <> " []"
   show (Node x _)  = "Node " <> (show x) <> " [...]"
 
---instance Foldable (Graph a) where
--- gfoldr1 :: (a -> Maybe b -> Maybe b) -> Graph a -> Maybe b
--- gfoldr1 :: ([a] -> b) -> Graph a -> b
-gfoldr1 :: ([Graph a] -> Graph a) -> Graph a -> a
-gfoldr1 _ (Node b []) = b
-gfoldr1 f (Node _ bs) = gfoldr1 f (f bs)
+placementsGraph :: (b -> s -> [b]) -> [s] -> b -> Graph b
+placementsGraph _ []     b = Node b []
+placementsGraph f (s:ss) b = Node b (map (placementsGraph f ss) (f b s))
 
-firstWalk = gfoldr1 (\bs -> head bs)
-modWalk n = gfoldr1 (\bs -> bs !! (n `mod` (length bs)))
--- randomWalk
-
---sampleGraph = Node 1 [Node 2 [], Node 3 [Node 4 [], Node 5 []]]
-
-sampleGraph = let board = fromJust $ mkEmptyBoard dims ships
-                  ships = defaultShips ++ [(fromJust $ mkShip "GapFiller" 'G' (1,3))]
-                  dims  = (5,4)
-              in graph step ships board
-
-
--- depthFirstPath :: (a -> Bool) -> Graph a -> Maybe [a]
--- depthFirstPath p (Node x xs) =
---   if p x
---   then Just [x]
---   else fmap (x:) . msum . map (depthFirstPath p) $ xs
-
--- depthFirstSearchM :: Monad m => ([a] -> m [a]) -> (a -> Bool) -> Graph a -> Maybe [a]
--- depthFirstSearchM o p (Node x xs) =
---     if p x
---     then Just [x]
---     else ((subs xs) >>= (\oxs -> fmap (x:) . msum . map (depthFirstSearchM o p) $ oxs))
---   where
---     subs (Node _ bs) = bs
-
-{-
-dfs :: Monad m => ([Graph b] -> m [Graph b]) -> (b -> Bool) -> Graph b -> Maybe (m b)
-dfs ord p (Node x xs)
-  | p x       = Just x
-  | null xs   = Nothing
-  | otherwise = (ord xs) >>= (\oxs -> Just <$> msum . map (dfs ord p) $ oxs)
-
-someOrdering :: [a] -> Identity [a]
-someOrdering as = return as
--}
-
-dfs2 :: ([Graph b] -> [Graph b]) -> (b -> Bool) -> Graph b -> Maybe b
-dfs2 ord p (Node x xs)
-  | p x       = Just x
-  | null xs   = Nothing
-  | otherwise = msum . map (dfs2 ord p) $ ord xs
-
-someOrdering = id
-testSearch = dfs2 someOrdering (\b -> length(placements(b)) == length(validShips(b))) sampleGraph
-
---       (b -> s -> [b])              -> Graph b     -> Maybe b
---dfs :: (Board -> [Ship] -> [Board]) -> Graph Board -> Maybe Board
---dfs p (Node b bs)
---  | null (p b) = Just b
---  | otherwise  = fmap (b:) . msum . map (dfs p) $ bs
-
--- 4x4 Board, ships are ordered by size
--- Node (Board []) [
---   Node (Board [(ship1,(1,1),Downward)]) [
---     Node (Board [(ship1,(1,1),Downward), (ship2,(2,1),Downward)]) []
---   ],
---   Node (Board [(ship1,(2,1),Downward)]) [
---     Node (Board [(ship1,(2,1),Downward), (ship2,(1,1),Downward)]) []
---   ],
---   Node (Board [(ship1,(1,1),Rightward)]) [
---     Node (Board [(ship1,(1,1),Rightward), (ship2,(1,2),Rightward)]) []
---   ],
---   Node (Board [(ship1,(1,2),Rightward)]) [
---     Node (Board [(ship1,(1,2),Rightward), (ship2,(1,1),Rightward)]) []
---   ]
--- ]
-
---firstWalk :: (b -> Ship -> [b]) -> [Ship] -> Graph b -> Maybe b
---firstWalk _ []     (Node b [])     = Just b
---firstWalk _ (_:_)  (Node b [])     = Nothing
---firstWalk f (s:ss) (Node b (bf:_)) = firstWalk f ss (Node bf (map (step bf s))) -- Choose the first
---firstWalk f (s:ss) (Node b (bf:_)) = firstWalk f ss ((Node bf) (step bf s)) -- Choose the first
-
---firstWalk initialBoard ships =
---  foldr (\(b,(s:ss)) bs -> Node b (step b s))  (initialBoard,ships)
-
--- Node (Board []) [   Node (Board [(ship1,(1,1),Downward)]) [  Node (Board [(ship1,(1,1),Downward), (ship2,(2,1),Downward)]) []   ]     ]
-
--- graphFold :: (a -> [b] -> b) -> Graph a -> b
--- graphFold f (Node a ns) = f a (map (graphFold f) ns)
-
--- foo = foldr f
---   where
---     f (b,(s:ss)) bs = Node b (map (\x -> Node x ss bs) (step b s))
-
---  foldr (\(b,(s:ss)) bs -> Node b (step b s))  (initialBoard,ships)
-
-graph :: (b -> s -> [b]) -> [s] -> b -> Graph b
-graph _ []     b = Node b []
-graph f (s:ss) b = Node b (map (graph f ss) (f b s))
-
--- walk = foldM (\b bs ->
-
-step :: Board -> Ship -> [Board]
-step board ship =
+placementStep :: Board -> Ship -> [Board]
+placementStep board ship =
   catMaybes $ map (placeShip board) permutations
   where
     (w,h) = boardDimensions board
     permutations :: [ShipPlacement]
     permutations = [(ship,(x,y),d) | d <- [Downward,Rightward], y <- [1..h], x <- [1..w]]
--- eg.
--- step (fromJust $ mkEmptyBoard defaultBoardDimensions defaultShips) defaultShips
+
+-- A modified version of the dfs search from this post:
+-- https://monadmadness.wordpress.com/2014/11/10/purely-functional-graph-search-algorithms/
+depthFirstGraphSearch :: ([Graph b] -> [Graph b]) -> (b -> Bool) -> Graph b -> Maybe b
+depthFirstGraphSearch ord p (Node x xs)
+  | p x       = Just x
+  | null xs   = Nothing
+  | otherwise = msum . map (depthFirstGraphSearch ord p) $ ord xs
+
+
+-- TODO: In here is the beginning of actual random traversal; the ordering function
+{-
+dfsM :: Monad m => ([Graph b] -> m [Graph b]) -> (b -> Bool) -> Graph b -> Maybe (m b)
+dfsM ord p (Node x xs)
+  | p x       = Just x
+  | null xs   = Nothing
+  | otherwise = (ord xs) >>= (\oxs -> Just <$> msum . map (dfsM ord p) $ oxs)
+
+-- Just uses the Identity Monad for the moment
+someOrdering :: [a] -> Identity [a]
+someOrdering as = return as
+-}
