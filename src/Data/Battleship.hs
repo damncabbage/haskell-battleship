@@ -270,14 +270,18 @@ depthFirstGraphSearch ord p (Node x xs)
 
 
 -- TODO: In here is the beginning of actual random traversal; the ordering function
-{-
-dfsM :: Monad m => ([Graph b] -> m [Graph b]) -> (b -> Bool) -> Graph b -> Maybe (m b)
+dfsM :: Monad m => ([Graph b] -> m [Graph b]) -> (b -> Bool) -> Graph b -> m (Maybe b)
 dfsM ord p (Node x xs)
   | p x       = Just x
   | null xs   = Nothing
-  | otherwise = (ord xs) >>= (\oxs -> Just <$> msum . map (dfsM ord p) $ oxs)
+  | otherwise = (ord xs) >>= (\oxs -> msum . map (dfsM ord p) $ oxs)
 
 -- Just uses the Identity Monad for the moment
 someOrdering :: [a] -> Identity [a]
 someOrdering as = return as
--}
+
+testDFSM =
+  dfsM someOrdering (\b -> length(placements(b)) == length(validShips(b))) (graph board)
+  where
+    board = fromJust $ mkEmptyBoard (5,4) defaultShips
+    graph b = placementsGraph placementStep ships b
