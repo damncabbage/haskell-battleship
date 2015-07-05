@@ -272,9 +272,15 @@ depthFirstGraphSearch ord p (Node x xs)
 -- TODO: In here is the beginning of actual random traversal; the ordering function
 dfsM :: Monad m => ([Graph b] -> m [Graph b]) -> (b -> Bool) -> Graph b -> m (Maybe b)
 dfsM ord p (Node x xs)
-  | p x       = Just x
-  | null xs   = Nothing
-  | otherwise = (ord xs) >>= (\oxs -> msum . map (dfsM ord p) $ oxs)
+  | p x       = return $ Just x
+  | null xs   = return $ Nothing
+  | otherwise = do
+      oxs <- ord xs
+      foo (dfsM ord p) oxs
+  where
+    foo :: (Graph b -> m (Maybe b)) -> [Graph b] -> m (Maybe b)
+    foo _ []     = return Nothing -- <== Nope
+    foo p (b:bs) = p b >>= (\pb -> if isJust pb then pb else foo p bs)
 
 -- Just uses the Identity Monad for the moment
 someOrdering :: [a] -> Identity [a]
