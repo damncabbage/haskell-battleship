@@ -1,4 +1,4 @@
-{-# LANGUAGE ViewPatterns, OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns, OverloadedStrings, NoImplicitPrelude #-}
 
 -- TODO: Positive a / getPositive for generation of coords
 
@@ -39,26 +39,30 @@ module Data.Battleship (
   shots
 ) where
 
-import Data.Maybe
-import Data.Monoid
-import Data.List (find,intersect,maximum)
-import Control.Monad
-import Control.Monad.Random
-import System.Random.Shuffle
-import Text.Printf
+import Data.Maybe             ( Maybe(Just,Nothing),catMaybes,fromMaybe,isJust,maybe )
+import Data.Monoid            ( (<>),mconcat )
+import Data.List              ( any,concat,concatMap,elem,find,intersect,map,maximum,notElem,null,sum )
+import Control.Monad          ( Monad,foldM,return,sequence )
+import Control.Monad.Random   ( MonadRandom )
+import System.Random.Shuffle  ( shuffleM )
+import Text.Printf            ( printf )
+import Prelude                ( Bool,Char,Eq,Int,Show,String
+                              , ($),(&&),(*),(+),(-),(.),(/=),(<),(<=),(==),(>),(>=),(||)
+                              , error,foldr,fst,length,max,not,otherwise,replicate,show,snd,unlines
+                              )
 
-data Direction = Downward | Rightward     deriving(Show,Eq)
-data Result    = Hit ShipPlacement | Miss deriving(Show,Eq)
-data Player    = Player1 | Player2        deriving(Show,Eq)
-data Ship      = Ship {
-                   name           :: String,
-                   initial        :: Char,
-                   shipDimensions :: Dimensions
-                 } deriving(Show,Eq)
+data Direction     = Downward | Rightward     deriving(Show,Eq)
+data Result        = Hit ShipPlacement | Miss deriving(Show,Eq)
+data Player        = Player1 | Player2        deriving(Show,Eq)
+data Ship          = Ship {
+                       name           :: String,
+                       initial        :: Char,
+                       shipDimensions :: Dimensions
+                     } deriving(Show,Eq)
 
-type Dimensions      = (Int,Int)
-type Coords          = (Int,Int)
-type ShipPlacement   = (Ship,Coords,Direction)
+type Dimensions    = (Int,Int)
+type Coords        = (Int,Int)
+type ShipPlacement = (Ship,Coords,Direction)
 
 data Board = Board {
                boardDimensions :: Dimensions,
