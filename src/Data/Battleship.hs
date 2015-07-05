@@ -1,6 +1,9 @@
 {-# LANGUAGE ViewPatterns, OverloadedStrings, NoImplicitPrelude #-}
 
 -- TODO: Positive a / getPositive for generation of coords
+-- TODO: Break Board-, Ship- and Game-related functions out into their own modules;
+--       things are starting to get unwieldy names trying to make clear what they
+--       relate to.
 
 module Data.Battleship (
   -- Types and (safe) constructors
@@ -118,8 +121,8 @@ mkShip n i d
   | otherwise                        = Nothing
   where
     vDims (x,y) = x > 0 && y > 0
-    vInitial i  = elem i ['A'..'Z']
-    vName n     = length n > 0
+    vInitial c  = elem c ['A'..'Z']
+    vName s     = length s > 0
 
 -- TODO: Appears to hold up for everything I've tossed at it. Needs a property test,
 --       but it's damn hard to come up with a generator producing non-overlapping ships.
@@ -162,10 +165,10 @@ mkGame (p1,b1) (p2,b2)
 
 placeShip :: Board -> ShipPlacement -> Maybe Board
 placeShip b p
-  | validPlacement b p = Just b { placements = placements b <> [p] }
-  | otherwise          = Nothing
+  | validPlacement = Just b { placements = placements b <> [p] }
+  | otherwise      = Nothing
   where
-    validPlacement b p =
+    validPlacement =
       inBounds (boardDimensions b) p && not (any (overlapping p) (placements b))
     inBounds (bw,bh) (shipDimensions -> (sx,sy), (cx,cy), dir) =
       case dir of
@@ -178,7 +181,7 @@ placeShip b p
           y2 = snd . bottomRight
       in (x1 p1 < x2 p2) && (x2 p1 > x1 p2) &&
          (y1 p1 < y2 p2) && (y2 p1 > y1 p2)
-    topLeft (_,p,_) = p
+    topLeft (_,sp,_) = sp
     bottomRight (shipDimensions -> (sx,sy), (cx,cy), dir) =
       case dir of
         Downward  -> (cx + sx, cy + sy)
@@ -193,20 +196,20 @@ attack g c
       Just appendedShotAndSwappedPlayer
   | otherwise = Nothing
   where
-    appendedShotAndSwappedPlayer
-      | (currentPlayer g) == (player1 g) = g { board1 = appendShot, currentPlayer = player2 g }
-      | (currentPlayer g) == (player2 g) = g { board2 = appendShot, currentPlayer = player1 g }
+    appendedShotAndSwappedPlayer =
+      player1Or2 (g { board1 = appendedShot, currentPlayer = player2 g })
+                 (g { board2 = appendedShot, currentPlayer = player1 g })
     inBounds (boardDimensions -> (bw,bh)) (cx,cy) =
       (cx >= 1) && (cx <= bw) &&
       (cy >= 1) && (cy <= bh)
-    notRepeated = notElem c (shotsCoords board)
-    ships       = placements board
-    result      = maybe Miss Hit (find (elem c . shipPlacementToCoords) ships)
-    isHit       = case result of (Hit _) -> True; Miss -> False
-    appendShot  = board { shots = (shots board) <> [(c,result)] }
-    board
-      | (currentPlayer g) == (player1 g) = board1 g
-      | (currentPlayer g) == (player2 g) = board2 g
+    board        = player1Or2 (board1 g) (board2 g)
+    notRepeated  = notElem c (shotsCoords board)
+    result       = maybe Miss Hit (find (elem c . shipPlacementToCoords) (placements board))
+    appendedShot = board { shots = (shots board) <> [(c,result)] }
+    player1Or2 fp1 fp2
+      | (currentPlayer g) == (player1 g) = fp1
+      | (currentPlayer g) == (player2 g) = fp2
+      | otherwise                        = error "BUG: currentPlayer is neither player1 or player2"
 
 attacksFromList :: Game -> [Coords] -> Maybe Game
 attacksFromList = foldM attack
@@ -262,16 +265,16 @@ placementStep board ship =
 -- A heavily-modified version of the dfs search from this post:
 -- https://monadmadness.wordpress.com/2014/11/10/purely-functional-graph-search-algorithms/
 depthFirstGraphSearch :: Monad m => ([Graph b] -> m [Graph b]) -> (b -> Bool) -> Graph b -> m (Maybe b)
-depthFirstGraphSearch ord p (Node x xs)
-  | p x       = return $ Just x
+depthFirstGraphSearch ord pred (Node x xs)
+  | pred x    = return $ Just x
   | null xs   = return $ Nothing
   | otherwise = do
       oxs <- ord xs
-      select (depthFirstGraphSearch ord p) oxs
+      select (depthFirstGraphSearch ord pred) oxs
   where
-    select _ []     = return Nothing
-    select p (b:bs) = do
-      pb <- (p b)
-      if isJust pb
-        then return pb
-        else select p bs
+    select _       []     = return Nothing
+    select check (b:bs) = do
+      cb <- (check b)
+      if isJust cb
+        then return cb
+        else select check bs
