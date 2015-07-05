@@ -50,16 +50,17 @@ module Data.Battleship (
   shots
 ) where
 
-import Data.Maybe             ( Maybe(Just,Nothing),catMaybes,fromMaybe,isJust,maybe )
+import Data.Maybe             ( Maybe(Just,Nothing),isJust,maybe )
+import Data.Either            ( either,rights )
 import Data.Monoid            ( (<>),mconcat )
 import Data.List              ( any,concat,concatMap,elem,find,intersect,map,maximum,notElem,null,sum )
 import Control.Monad          ( Monad,foldM,return,sequence )
 import Control.Monad.Random   ( MonadRandom )
 import System.Random.Shuffle  ( shuffleM )
 import Text.Printf            ( printf )
-import Prelude                ( Bool,Char,Eq,Int,Show,String
-                              , ($),(&&),(*),(+),(-),(.),(/=),(<),(<=),(==),(>),(>=),(||)
-                              , error,foldr,fst,length,max,not,otherwise,replicate,show,snd,unlines
+import Prelude                ( Bool,Char,Eq,Int,Show,String,Either(Left,Right)
+                              , ($),(&&),(*),(+),(-),(.),(<),(<=),(==),(>),(>=),(||)
+                              , const,error,foldr,fst,id,length,max,not,otherwise,replicate,show,snd,unlines
                               )
 
 data Direction     = Downward | Rightward     deriving(Show,Eq)
@@ -80,14 +81,30 @@ data Board = Board {
                placements      :: [ShipPlacement],
                shots           :: [(Coords,Result)],
                validShips      :: [Ship]
-             }
+             } deriving(Eq)
 data Game  = Game {
                currentPlayer :: Player,
                player1       :: Player,
                board1        :: Board,
                player2       :: Player,
                board2        :: Board
-             } deriving(Show)
+             } deriving(Show,Eq)
+
+-- TODO: Consider splitting this into different groups; "preparatory" sort of errors,
+--       and "game errors". GameFinished is arguably something that should be covered
+--       by making playing-a-finished-game invalid by construction
+--       (eg. data Board = EmptyBoard | PlacedBoard | InPlayBoard | FinishedBoard,
+--       then only accepting an InPlayBoard for attack or something.)
+data GameError = InvalidDimensions Dimensions
+               | InvalidInitial Char
+               | InvalidName String
+               | NoShips
+               | DuplicatePlayers Player
+               | DuplicateShot
+               | OutOfBounds
+               | OverlapsPlacedShip
+               | GameFinished
+  deriving(Show,Eq)
 
 instance Show Board where
   show b =
@@ -110,7 +127,7 @@ instance Show Board where
 -- One of the few cases I'd consider using a fromJust; this not working is a
 -- border-line program bug.
 defaultShips :: [Ship]
-defaultShips = fromMaybe [] $ shipsFromList
+defaultShips = either (const []) (id) $ shipsFromList
                  [ ("Carrier",    'C', (1,5))
                  , ("Battleship", 'B', (1,4))
                  , ("Submarine",  'S', (1,3))
@@ -121,17 +138,17 @@ defaultShips = fromMaybe [] $ shipsFromList
 defaultBoardDimensions :: Dimensions
 defaultBoardDimensions = (10,10)
 
-shipsFromList :: [(String,Char,Coords)] -> Maybe [Ship]
+shipsFromList :: [(String,Char,Coords)] -> Either GameError [Ship]
 shipsFromList = sequence . map (\(n,i,p) -> mkShip n i p)
 
-mkShip :: String -> Char -> (Int,Int) -> Maybe Ship
+mkShip :: String -> Char -> (Int,Int) -> Either GameError Ship
 mkShip n i d
-  | vDims d && vInitial i && vName n = Just Ship { name = n, initial = i, shipDimensions = d }
-  | otherwise                        = Nothing
+  | not $ vDims d        = Left $ InvalidDimensions d
+  | notElem i ['A'..'Z'] = Left $ InvalidInitial i
+  | length n <= 0        = Left $ InvalidName n
+  | otherwise            = Right $ Ship { name = n, initial = i, shipDimensions = d }
   where
     vDims (x,y) = x > 0 && y > 0
-    vInitial c  = elem c ['A'..'Z']
-    vName s     = length s > 0
 
 -- TODO: Appears to hold up for everything I've tossed at it. Needs a property test,
 --       but it's damn hard to come up with a generator producing non-overlapping ships.
@@ -145,40 +162,46 @@ boardLargeEnoughForShips (x,y) ships =
     multList    = foldr (*) 1
     pairToList (a,b) = [a,b]
 
-mkEmptyBoard :: Dimensions -> [Ship] -> Maybe Board
-mkEmptyBoard d s =
-  if not (null s) && boardLargeEnoughForShips d s then
-    Just Board { boardDimensions = d, placements = [], shots = [], validShips = s }
-  else
-    Nothing
+mkEmptyBoard :: Dimensions -> [Ship] -> Either GameError Board
+mkEmptyBoard d s
+  | null s                             = Left $ NoShips
+  | not (boardLargeEnoughForShips d s) = Left $ InvalidDimensions d
+  | otherwise =
+      Right Board { boardDimensions = d, placements = [], shots = [], validShips = s }
 
-mkRandomBoard :: MonadRandom m => Dimensions -> [Ship] -> m (Maybe Board)
-mkRandomBoard dims ships =
-  -- TODO: Learn how to use monad transformers. Use MaybeT here.
-  maybe (return Nothing)
-        (\board -> depthFirstGraphSearch ordering (\b -> length(placements(b)) == length(validShips(b))) (graph board))
-        (mkEmptyBoard dims ships)
+mkRandomBoard :: MonadRandom m => Dimensions -> [Ship] -> m (Either GameError Board)
+mkRandomBoard dims ships = do
+  -- TODO: Learn how to use monad transformers. Use EitherT+MaybeT here.
+  either (\e -> return $ Left e)
+         (\board -> findWith board)
+         (mkEmptyBoard dims ships)
   where
+    findWith board = do
+      nb <- depthFirstGraphSearch ordering
+                                  (\b -> length(placements(b)) == length(validShips(b)))
+                                  (graph board)
+      return $ maybe (Left $ InvalidDimensions dims) -- Arguably a bug in boardLargeEnoughForShips
+                     (Right)
+                     (nb)
     graph b = placementsGraph placementStep ships b
     ordering = shuffleM
 
-mkGame :: (Player,Board) -> (Player,Board) -> Maybe Game
+mkGame :: (Player,Board) -> (Player,Board) -> Either GameError Game
 mkGame (p1,b1) (p2,b2)
-  | p1 /= p2  = Just Game { currentPlayer = p1 -- Just default to the first, whatever it is.
-                          , player1 = p1
-                          , board1  = b1
-                          , player2 = p2
-                          , board2  = b2
-                          }
-  | otherwise = Nothing
+  | p1 == p2  = Left $ DuplicatePlayers p1
+  | otherwise = Right $ Game { currentPlayer = p1 -- Just default to the first, whatever it is.
+                             , player1 = p1
+                             , board1  = b1
+                             , player2 = p2
+                             , board2  = b2
+                             }
 
-placeShip :: Board -> ShipPlacement -> Maybe Board
+placeShip :: Board -> ShipPlacement -> Either GameError Board
 placeShip b p
-  | validPlacement = Just b { placements = placements b <> [p] }
-  | otherwise      = Nothing
+  | not $ inBounds (boardDimensions b) p = Left OutOfBounds
+  | (any (overlapping p) (placements b)) = Left OverlapsPlacedShip
+  | otherwise = Right b { placements = placements b <> [p] }
   where
-    validPlacement =
-      inBounds (boardDimensions b) p && not (any (overlapping p) (placements b))
     inBounds (bw,bh) (shipDimensions -> (sx,sy), (cx,cy), dir) =
       case dir of
         Downward  -> cx > 0 && cy > 0 && cx + (sx - 1) <= bw && cy + (sy - 1) <= bh
@@ -196,14 +219,15 @@ placeShip b p
         Downward  -> (cx + sx, cy + sy)
         Rightward -> (cx + sy, cy + sx)
 
-placedBoardFromList :: Board -> [ShipPlacement] -> Maybe Board
+placedBoardFromList :: Board -> [ShipPlacement] -> Either GameError Board
 placedBoardFromList = foldM placeShip
 
-attack :: Game -> Coords -> Maybe Game
+attack :: Game -> Coords -> Either GameError Game
 attack g c
-  | inBounds board c && notRepeated && (not $ finished g) =
-      Just appendedShotAndSwappedPlayer
-  | otherwise = Nothing
+  | not $ inBounds board c = Left OutOfBounds
+  | repeated c             = Left DuplicateShot
+  | finished g             = Left GameFinished
+  | otherwise              = Right appendedShotAndSwappedPlayer
   where
     appendedShotAndSwappedPlayer =
       player1Or2 (g { board1 = appendedShot, currentPlayer = player2 g })
@@ -212,7 +236,7 @@ attack g c
       (cx >= 1) && (cx <= bw) &&
       (cy >= 1) && (cy <= bh)
     board        = player1Or2 (board1 g) (board2 g)
-    notRepeated  = notElem c (shotsCoords board)
+    repeated s   = elem s (shotsCoords board)
     result       = maybe Miss Hit (find (elem c . shipPlacementToCoords) (placements board))
     appendedShot = board { shots = (shots board) <> [(c,result)] }
     player1Or2 fp1 fp2
@@ -220,7 +244,7 @@ attack g c
       | (currentPlayer g) == (player2 g) = fp2
       | otherwise                        = error "BUG: currentPlayer is neither player1 or player2"
 
-attacksFromList :: Game -> [Coords] -> Maybe Game
+attacksFromList :: Game -> [Coords] -> Either GameError Game
 attacksFromList = foldM attack
 
 finished :: Game -> Bool
@@ -265,7 +289,7 @@ placementsGraph f (s:ss) b = Node b (map (placementsGraph f ss) (f b s))
 
 placementStep :: Board -> Ship -> [Board]
 placementStep board ship =
-  catMaybes $ map (placeShip board) permutations
+  rights $ map (placeShip board) permutations
   where
     (w,h) = boardDimensions board
     permutations :: [ShipPlacement]
@@ -281,7 +305,7 @@ depthFirstGraphSearch ord pred (Node x xs)
       oxs <- ord xs
       select (depthFirstGraphSearch ord pred) oxs
   where
-    select _       []     = return Nothing
+    select _     []     = return Nothing
     select check (b:bs) = do
       cb <- (check b)
       if isJust cb
