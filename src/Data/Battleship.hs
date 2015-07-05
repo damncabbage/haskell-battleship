@@ -1,4 +1,4 @@
-{-# LANGUAGE ViewPatterns, OverloadedStrings, NoImplicitPrelude #-}
+{-# LANGUAGE ViewPatterns, NoImplicitPrelude #-}
 
 -- TODO: Positive a / getPositive for generation of coords
 -- TODO: Break Board-, Ship- and Game-related functions out into their own modules;
