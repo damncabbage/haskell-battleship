@@ -278,7 +278,7 @@ dfsM ord p (Node x xs)
       oxs <- ord xs
       foo (dfsM ord p) oxs
   where
-    foo :: (Graph b -> m (Maybe b)) -> [Graph b] -> m (Maybe b)
+    foo :: Monad m => (Graph b -> m (Maybe b)) -> [Graph b] -> m (Maybe b)
     foo _ []     = return Nothing -- <== Nope
     foo p (b:bs) = p b >>= (\pb -> if isJust pb then pb else foo p bs)
 
