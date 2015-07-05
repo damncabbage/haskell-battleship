@@ -1,11 +1,5 @@
 {-# LANGUAGE ViewPatterns, OverloadedStrings #-}
 
--- TODO: Fold for placements on a board
--- TODO: Lazy DAG of ship placement possibilities
---         order placements from big ship to little
---         mapM placeShip [placement]?
--- TODO:
--- TODO: (Coord (x,y),Direction) -> (TL(x,y), BR(x,y))
 -- TODO: Positive a / getPositive for generation of coords
 
 module Data.Battleship (
@@ -48,10 +42,9 @@ module Data.Battleship (
 import Data.Maybe
 import Data.Monoid
 import Data.List (find,intersect,maximum)
-import Control.Applicative
 import Control.Monad
-import Control.Monad.Identity
-import System.Random
+import Control.Monad.Random
+import System.Random.Shuffle
 import Text.Printf
 
 data Direction = Downward | Rightward     deriving(Show,Eq)
@@ -143,13 +136,15 @@ mkEmptyBoard d s =
   else
     Nothing
 
-mkRandomBoard :: Dimensions -> [Ship] -> (IO StdGen) -> Maybe Board
-mkRandomBoard dims ships gen = do
-  board <- mkEmptyBoard dims ships
-  depthFirstGraphSearch ordering (\b -> length(placements(b)) == length(validShips(b))) (graph board)
+mkRandomBoard :: MonadRandom m => Dimensions -> [Ship] -> m (Maybe Board)
+mkRandomBoard dims ships =
+  -- TODO: Learn how to use monad transformers. Use MaybeT here.
+  maybe (return Nothing)
+        (\board -> depthFirstGraphSearch ordering (\b -> length(placements(b)) == length(validShips(b))) (graph board))
+        (mkEmptyBoard dims ships)
   where
     graph b = placementsGraph placementStep ships b
-    ordering = id
+    ordering = shuffleM
 
 mkGame :: (Player,Board) -> (Player,Board) -> Maybe Game
 mkGame (p1,b1) (p2,b2)
@@ -260,35 +255,19 @@ placementStep board ship =
     permutations :: [ShipPlacement]
     permutations = [(ship,(x,y),d) | d <- [Downward,Rightward], y <- [1..h], x <- [1..w]]
 
--- A modified version of the dfs search from this post:
+-- A heavily-modified version of the dfs search from this post:
 -- https://monadmadness.wordpress.com/2014/11/10/purely-functional-graph-search-algorithms/
-depthFirstGraphSearch :: ([Graph b] -> [Graph b]) -> (b -> Bool) -> Graph b -> Maybe b
+depthFirstGraphSearch :: Monad m => ([Graph b] -> m [Graph b]) -> (b -> Bool) -> Graph b -> m (Maybe b)
 depthFirstGraphSearch ord p (Node x xs)
-  | p x       = Just x
-  | null xs   = Nothing
-  | otherwise = msum . map (depthFirstGraphSearch ord p) $ ord xs
-
-
--- TODO: In here is the beginning of actual random traversal; the ordering function
-dfsM :: Monad m => ([Graph b] -> m [Graph b]) -> (b -> Bool) -> Graph b -> m (Maybe b)
-dfsM ord p (Node x xs)
   | p x       = return $ Just x
   | null xs   = return $ Nothing
   | otherwise = do
       oxs <- ord xs
-      foo (dfsM ord p) oxs
+      select (depthFirstGraphSearch ord p) oxs
   where
-    foo :: Monad m => (Graph b -> m (Maybe b)) -> [Graph b] -> m (Maybe b)
-    foo _ []     = return Nothing -- <== Nope
-    foo p (b:bs) = p b >>= (\pb -> if isJust pb then pb else foo p bs)
-
--- Just uses the Identity Monad for the moment
-someOrdering :: [a] -> Identity [a]
-someOrdering as = return as
-
-testDFSM =
-  dfsM someOrdering (\b -> length(placements(b)) == length(validShips(b))) (graph board)
-  where
-    ships = defaultShips
-    board = fromJust $ mkEmptyBoard (5,4) ships
-    graph b = placementsGraph placementStep ships b
+    select _ []     = return Nothing
+    select p (b:bs) = do
+      pb <- (p b)
+      if isJust pb
+        then return pb
+        else select p bs
