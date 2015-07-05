@@ -289,5 +289,6 @@ someOrdering as = return as
 testDFSM =
   dfsM someOrdering (\b -> length(placements(b)) == length(validShips(b))) (graph board)
   where
-    board = fromJust $ mkEmptyBoard (5,4) defaultShips
+    ships = defaultShips
+    board = fromJust $ mkEmptyBoard (5,4) ships
     graph b = placementsGraph placementStep ships b
