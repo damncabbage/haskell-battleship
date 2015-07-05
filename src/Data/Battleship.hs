@@ -4,6 +4,14 @@
 -- TODO: Break Board-, Ship- and Game-related functions out into their own modules;
 --       things are starting to get unwieldy names trying to make clear what they
 --       relate to.
+-- TODO: Switch to (Either <SpecificErrorSumType> a) from all the Maybes; it's a
+--       black box for users right now.
+-- TODO: Consider a different way of doing ShipPlacement without the terrible
+--       (_,x,_)-style matching to extract parts.
+-- TODO: Consider whether we want the Ship that's been hit stored as part of the
+--       Result type or not; it is now, but may be "information leakage" of sorts.
+-- TODO: Rewrite the history of these commits so nobody will find out that I'm
+--       secretly terrible at all of this.
 
 module Data.Battleship (
   -- Types and (safe) constructors
@@ -99,7 +107,8 @@ instance Show Board where
         | otherwise = maybe '·' (initial . shipFromPlacement) (findPlacement c)
 
 
--- TODO: One of the few cases I'd consider using a fromJust.
+-- One of the few cases I'd consider using a fromJust; this not working is a
+-- border-line program bug.
 defaultShips :: [Ship]
 defaultShips = fromMaybe [] $ shipsFromList
                  [ ("Carrier",    'C', (1,5))
