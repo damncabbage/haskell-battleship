@@ -1,4 +1,4 @@
-# Battleship
+# Battleship ![](https://img.shields.io/badge/i%20love-cat%20gifs%20%F0%9F%90%B1-green.svg)
 
 An API for simulating a game of "Battleship"; see https://github.com/ambiata/interview/blob/master/battleship.md for the full description. Summarised (in excerpts):
 
@@ -30,3 +30,9 @@ $ cabal update; cabal install cabal-install
 $ cabal install --enable-tests
 $ cabal test
 ```
+
+## Notes
+
+There are two branches:
+* [master](https://github.com/damncabbage/haskell-battleship/tree/master) is the manicured history I'd use for a pull request.
+* [noodling](https://github.com/damncabbage/haskell-battleship/tree/noodling) is the amateurish fumbling progression I actually made as I gradually figured out which ends to hold of the various knives I needed to actually solve this exercise.
