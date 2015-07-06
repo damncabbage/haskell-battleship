@@ -24,6 +24,7 @@ module Data.Battleship (
   Result,
   Ship,
   ShipPlacement,
+  GameError(..),
 
   -- Headlining Library Functions
   mkEmptyBoard,
@@ -59,7 +60,7 @@ import Control.Monad.Random   ( MonadRandom )
 import System.Random.Shuffle  ( shuffleM )
 import Text.Printf            ( printf )
 import Prelude                ( Bool,Char,Eq,Int,Show,String,Either(Left,Right)
-                              , ($),(&&),(*),(+),(-),(.),(<),(<=),(==),(>),(>=),(||)
+                              , ($),(&&),(*),(+),(-),(.),(<),(<=),(==),(/=),(>),(>=),(||)
                               , const,error,foldr,fst,id,length,max,not,otherwise,replicate,show,snd,unlines
                               )
 
@@ -90,11 +91,15 @@ data Game  = Game {
                board2        :: Board
              } deriving(Show,Eq)
 
--- TODO: Consider splitting this into different groups; "preparatory" sort of errors,
---       and "game errors". GameFinished is arguably something that should be covered
---       by making playing-a-finished-game invalid by construction
---       (eg. data Board = EmptyBoard | PlacedBoard | InPlayBoard | FinishedBoard,
---       then only accepting an InPlayBoard for attack or something.)
+-- TODO: Consider splitting this into different groups; "preparatory" sort of
+--       errors, and "game errors".
+--       BoardNotReady and GameFinished are arguably something that should be
+--       covered by making playing-an-unready-game and playing-a-finished-game
+--       invalid by construction, eg.
+--         data Board = EmptyBoard | PlacedBoard | InPlayBoard | FinishedBoard ...
+--         data Game  = InPlayGame | FinishedGame ...
+--       ... then only accepting an InPlayGame for attack and PlacedBoard for
+--       mkGame or something.
 data GameError = InvalidDimensions Dimensions
                | InvalidInitial Char
                | InvalidName String
@@ -103,6 +108,7 @@ data GameError = InvalidDimensions Dimensions
                | DuplicateShot
                | OutOfBounds
                | OverlapsPlacedShip
+               | BoardNotReady Board
                | GameFinished
   deriving(Show,Eq)
 
@@ -188,13 +194,17 @@ mkRandomBoard dims ships = do
 
 mkGame :: (Player,Board) -> (Player,Board) -> Either GameError Game
 mkGame (p1,b1) (p2,b2)
-  | p1 == p2  = Left $ DuplicatePlayers p1
-  | otherwise = Right $ Game { currentPlayer = p1 -- Just default to the first, whatever it is.
-                             , player1 = p1
-                             , board1  = b1
-                             , player2 = p2
-                             , board2  = b2
-                             }
+  | p1 == p2      = Left $ DuplicatePlayers p1
+  | incomplete b1 = Left $ BoardNotReady b1
+  | incomplete b2 = Left $ BoardNotReady b1
+  | otherwise     = Right $ Game { currentPlayer = p1 -- Just default to the first, whatever it is.
+                                 , player1 = p1
+                                 , board1  = b1
+                                 , player2 = p2
+                                 , board2  = b2
+                                 }
+  where
+    incomplete b = (validShips b) /= (map shipFromPlacement $ placements b)
 
 placeShip :: Board -> ShipPlacement -> Either GameError Board
 placeShip b p
