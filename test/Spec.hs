@@ -29,36 +29,38 @@ import           Control.Monad
 -- - blank board
 -- - board with pre-placed pieces that do not overlap
 
-showBoard :: B.Board -> String
-showBoard = show
+-- HACK: This is kinda hideous. Something to never use outside of test code; at least
+--       it's not a timebomb waiting to go off like it would be in "real" code.
+fromRight e = either (error . show) id e
 
 main :: IO ()
 main = hspec $ do
+  let mkShips s = fromRight $ B.shipsFromList s
 
   describe "boardLargeEnoughForShips" $ do
     it "uses the longest ship and ship area to determine the minimum size" $ do
-      let ships = fromJust $ B.shipsFromList
-                    [ ("Carrier",    'C', (1,5))
-                    , ("Battleship", 'B', (1,4))
-                    , ("Submarine",  'S', (1,3))
-                    , ("Cruiser",    'R', (1,2))
-                    , ("Patrol",     'P', (1,1))
-                    ]
-      (B.boardLargeEnoughForShips (5,3) ships) `shouldBe` True
+      let ships = mkShips [ ("Carrier",    'C', (1,5))
+                          , ("Battleship", 'B', (1,4))
+                          , ("Submarine",  'S', (1,3))
+                          , ("Cruiser",    'R', (1,3))
+                          , ("Patrol",     'P', (1,2))
+                          ]
+      (B.boardLargeEnoughForShips (5,4) ships) `shouldBe` True
       (B.boardLargeEnoughForShips (4,3) ships) `shouldBe` False
       (B.boardLargeEnoughForShips (5,2) ships) `shouldBe` False
 
+
   describe "placeShip" $ do
-    let ships = fromJust $ B.shipsFromList [ ("AA", 'A', (1,5))
-                                           , ("BB", 'B', (2,4))
-                                           , ("CC", 'C', (1,4))
-                                           ]
-    let initialBoard  = fromJust $ B.mkEmptyBoard (6,6) ships
-    let boardWith     = B.placedBoardFromList initialBoard
+    let ships = mkShips [ ("AA", 'A', (1,5))
+                        , ("BB", 'B', (2,4))
+                        , ("CC", 'C', (1,4))
+                        ]
     let defPlacements = [ (ships !! 0, (1,1), B.Downward)
                         , (ships !! 1, (2,3), B.Rightward)
                         ]
-
+    let boardWith p = do
+          board <- B.mkEmptyBoard (6,6) ships
+          B.placedBoardFromList board p
 
     --   1 2 3 4 5 6
     -- 1 A · · · · ·
@@ -69,45 +71,78 @@ main = hspec $ do
     -- 6 · · · · · ·
     it "allows non-overlapping placement" $ do
       let p = defPlacements ++ [(ships !! 2, (6,1), B.Downward)]
-      (maybe [] (B.placements) (boardWith p)) `shouldBe` p
+      (B.placements $ fromRight $ boardWith p) `shouldBe` p
 
     it "disallows overlapping placement" $ do
       let p = defPlacements ++ [(ships !! 2, (2,1), B.Downward)] -- Overlapping Ship B
-      (maybe [] (B.placements) (boardWith p)) `shouldBe` []
+      boardWith p `shouldBe` Left B.OverlapsPlacedShip
 
     -- prop "overlapping ships produces a failure result" $ do
     --   \x -> showBoard x === show (fromJust (mkEmptyBoard (10,10) []))
 
-  describe "attack" $ do
-    let ships = fromJust $ B.shipsFromList [ ("AA", 'A', (1,5))
-                                           , ("BB", 'B', (2,4))
-                                           , ("CC", 'C', (1,4))
-                                           ]
-    let initialBoard  = fromJust $ B.mkEmptyBoard B.defaultBoardDimensions ships
-    let boardWith     = B.placedBoardFromList initialBoard
+  describe "mkGame" $ do
+    let ships = mkShips [ ("AA", 'A', (1,5))
+                        , ("BB", 'B', (2,4))
+                        , ("CC", 'C', (1,4))
+                        ]
     let defPlacements = [ (ships !! 0, (1,1), B.Downward)
                         , (ships !! 1, (2,3), B.Rightward)
                         ]
-    let board1 = fromJust $ boardWith (defPlacements ++ [(ships !! 2, (6,1), B.Downward)])
-    let board2 = fromJust $ boardWith (defPlacements ++ [(ships !! 2, (2,2), B.Rightward)])
-    let initialGame = fromJust $ B.mkGame (B.Player1,board1) (B.Player2,board2)
+    let gameSetup p1 p2 = do
+          eboard1 <- B.mkEmptyBoard (6,6) ships
+          eboard2 <- B.mkEmptyBoard (6,6) ships
+          pboard1 <- B.placedBoardFromList eboard1 p1
+          pboard2 <- B.placedBoardFromList eboard2 p2
+          B.mkGame (B.Player1,pboard1) (B.Player2,pboard2)
+
+    it "disallows an incomplete board to be used" $ do
+       "TODO" `shouldBe` "DONE"
+       -- (gameSetup defPlacements defPlacements) `shouldBe` (Left $ B.BoardNotReady ...)
+
+
+
+  describe "attack" $ do
+    let ships = mkShips [ ("AA", 'A', (1,5))
+                        , ("BB", 'B', (2,4))
+                        , ("CC", 'C', (1,4))
+                        ]
+    let defPlacements = [ (ships !! 0, (1,1), B.Downward)
+                        , (ships !! 1, (2,3), B.Rightward)
+                        ]
+    let gameSetup = do
+          eboard1 <- B.mkEmptyBoard (6,6) ships
+          eboard2 <- B.mkEmptyBoard (6,6) ships
+          pboard1 <- B.placedBoardFromList eboard1 (defPlacements ++ [(ships !! 2, (6,1), B.Downward)])
+          pboard2 <- B.placedBoardFromList eboard2 (defPlacements ++ [(ships !! 2, (6,1), B.Downward)])
+          B.mkGame (B.Player1,pboard1) (B.Player2,pboard2)
+
+    let initialGame = fromRight gameSetup
 
     it "allows valid shots" $ do
       let shots = [ (3,3)
                   , (3,3)
                   ]
       let game = B.attacksFromList initialGame shots
-      (maybe [] (B.shots . B.board1) game) `shouldSatisfy` (not . null)
+      -- TODO: Not a real test
+      (B.shots . B.board1 $ fromRight $ game) `shouldSatisfy` (not . null)
+      (B.shots . B.board2 $ fromRight $ game) `shouldSatisfy` (not . null)
 
     it "is an example game set of shots with some debug prints to rip out" $ do
       let shots = [ (3,3)
                   , (3,4)
-                  , (5,9)
-                  , (3,10)
-                  , (9,3)
+                  , (5,6)
+                  , (3,5)
+                  , (6,3)
                   , (5,5)
                   ]
       let game = B.attacksFromList initialGame shots
-      print (B.board1 $ fromJust game)
-      print (B.board2 $ fromJust game)
-      show (B.board1 $ fromJust game) `shouldSatisfy` (not . null)
+      -- TODO: Not a real test
+      print (B.board1 $ fromRight game)
+      print (B.board2 $ fromRight game)
+      (B.shots . B.board1 $ fromRight $ game) `shouldSatisfy` (not . null)
+      (B.shots . B.board2 $ fromRight $ game) `shouldSatisfy` (not . null)
+
+    -- TODO: Fire as many shots as there are squares; game should be finished.
+    -- TODO: Pairs of duplicate shots should result in a Left DuplicateShot
+    -- TODO: BoardLargeEnough and mkRandomBoard should agree with each other.
+    --
