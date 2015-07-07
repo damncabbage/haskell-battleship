@@ -8,8 +8,6 @@
 --       black box for users right now.
 -- TODO: Consider a different way of doing ShipPlacement without the terrible
 --       (_,x,_)-style matching to extract parts.
--- TODO: Consider whether we want the Ship that's been hit stored as part of the
---       Result type or not; it is now, but may be "information leakage" of sorts.
 -- TODO: Rewrite the history of these commits so nobody will find out that I'm
 --       secretly terrible at all of this.
 
@@ -21,12 +19,13 @@ module Data.Battleship (
   Direction(..),
   Game,
   Player(..),
-  Result,
+  Result(..),
   Ship,
   ShipPlacement,
   GameError(..),
 
   -- Headlining Library Functions
+  mkShip,
   mkEmptyBoard,
   mkRandomBoard,
   mkGame,
@@ -65,7 +64,7 @@ import Prelude                ( Bool,Char,Eq,Int,Show,String,Either(Left,Right)
                               )
 
 data Direction     = Downward | Rightward     deriving(Show,Eq)
-data Result        = Hit ShipPlacement | Miss deriving(Show,Eq)
+data Result        = Hit | Miss               deriving(Show,Eq)
 data Player        = Player1 | Player2        deriving(Show,Eq)
 data Ship          = Ship {
                        name           :: String,
@@ -196,7 +195,7 @@ mkGame :: (Player,Board) -> (Player,Board) -> Either GameError Game
 mkGame (p1,b1) (p2,b2)
   | p1 == p2      = Left $ DuplicatePlayers p1
   | incomplete b1 = Left $ BoardNotReady b1
-  | incomplete b2 = Left $ BoardNotReady b1
+  | incomplete b2 = Left $ BoardNotReady b2
   | otherwise     = Right $ Game { currentPlayer = p1 -- Just default to the first, whatever it is.
                                  , player1 = p1
                                  , board1  = b1
@@ -247,7 +246,7 @@ attack g c
       (cy >= 1) && (cy <= bh)
     board        = player1Or2 (board1 g) (board2 g)
     repeated s   = elem s (shotsCoords board)
-    result       = maybe Miss Hit (find (elem c . shipPlacementToCoords) (placements board))
+    result       = maybe Miss (const Hit) $ find (elem c . shipPlacementToCoords) (placements board)
     appendedShot = board { shots = (shots board) <> [(c,result)] }
     player1Or2 fp1 fp2
       | (currentPlayer g) == (player1 g) = fp1

@@ -6,8 +6,6 @@ import           Test.Hspec
 import           Test.Hspec.QuickCheck           (prop)
 import           Test.QuickCheck
 import           Data.Functor
-import           Data.Maybe
-import           Control.Applicative
 import           Control.Monad
 
 -- TODO Properties:
@@ -31,11 +29,57 @@ import           Control.Monad
 
 -- HACK: This is kinda hideous. Something to never use outside of test code; at least
 --       it's not a timebomb waiting to go off like it would be in "real" code.
+fromRight :: Show a => Either a c -> c
 fromRight e = either (error . show) id e
+
+shotsCol :: Int -> [a] -> [a]
+shotsCol _ []     = []
+shotsCol 1 (x:xs) = x         : (shotsCol 1 $ drop 1 xs)
+shotsCol 2 (x:xs) = (head xs) : (shotsCol 2 $ drop 1 xs)
+
+merge :: [a] -> [a] -> [a]
+merge [] ys = ys
+merge (x:xs) ys = x:merge ys xs
+
 
 main :: IO ()
 main = hspec $ do
   let mkShips s = fromRight $ B.shipsFromList s
+
+  -- B1:  1 2 3 4 5 6    B2:  1 2 3 4 5 6
+  --    1 A · · · · ·       1 · · · B · ·
+  --    2 A · · · · ·       2 · · · B · ·
+  --    3 A B B B · ·       3 · · · B · ·
+  --    4 A · · · · ·       4 · · · · · ·
+  --    5 · · · · · ·       5 A A A A · ·
+  --    6 · · · · · ·       6 · · · · · ·
+  describe "big dumb happy-path run-through of the entire set of exported headlining functions" $ do
+    let size  = (6,6)
+    let ships = mkShips [ ("AA", 'A', (1,4))
+                        , ("BB", 'B', (1,3))
+                        ]
+    let b1 = do
+          eb <- B.mkEmptyBoard size ships
+          B.placedBoardFromList eb $ zip3 ships [(1,1),(2,3)] [B.Downward,B.Rightward]
+    let b2 = do
+          eb <- B.mkEmptyBoard size ships
+          B.placedBoardFromList eb $ zip3 ships [(1,5),(4,1)] [B.Rightward,B.Downward]
+    let game xs = do
+          pb1  <- b1
+          pb2  <- b2
+          game <- B.mkGame (B.Player1,pb1) (B.Player2,pb2)
+          B.attacksFromList game xs
+
+    it "is a win for Player 1" $ do
+      let p1Shots = [ (1,5), (2,5), (3,5), (4,5), (4,1), (4,2), (4,3) ]
+      let p2Shots = [ (1,1), (2,1), (3,1), (4,1), (1,2), (2,2)        ]
+      -- P1 sinks A, P2 only hit one of A --^
+      --                                P1 sinks B, game over --^
+      let finalGame = fromRight $ game $ merge p1Shots p2Shots
+      (B.attack finalGame (1,4)) `shouldBe` (Left B.GameFinished)
+      (B.winner finalGame      ) `shouldBe` (Just B.Player1)
+      (B.finished finalGame    ) `shouldBe` True
+      (B.shots . B.board1 $ finalGame) `shouldBe` (map (\s -> (s,B.Hit)) p1Shots)
 
   describe "boardLargeEnoughForShips" $ do
     it "uses the longest ship and ship area to determine the minimum size" $ do
@@ -88,17 +132,18 @@ main = hspec $ do
     let defPlacements = [ (ships !! 0, (1,1), B.Downward)
                         , (ships !! 1, (2,3), B.Rightward)
                         ]
-    let gameSetup p1 p2 = do
-          eboard1 <- B.mkEmptyBoard (6,6) ships
-          eboard2 <- B.mkEmptyBoard (6,6) ships
-          pboard1 <- B.placedBoardFromList eboard1 p1
-          pboard2 <- B.placedBoardFromList eboard2 p2
-          B.mkGame (B.Player1,pboard1) (B.Player2,pboard2)
+    let boardSetup p = do
+          eboard <- B.mkEmptyBoard (6,6) ships
+          B.placedBoardFromList eboard p
+    let board1 p = fromRight $ boardSetup (defPlacements ++ p)
+    let board2 p = fromRight $ boardSetup (defPlacements ++ p)
 
     it "disallows an incomplete board to be used" $ do
-       "TODO" `shouldBe` "DONE"
-       -- (gameSetup defPlacements defPlacements) `shouldBe` (Left $ B.BoardNotReady ...)
-
+      let s = (ships !! 2, (2,1), B.Rightward)
+      shouldBe (B.mkGame (B.Player1,board1 []) (B.Player2,board2 [s]))
+               (Left $ B.BoardNotReady $ board1 [])
+      shouldBe (B.mkGame (B.Player1,board1 [s]) (B.Player2,board2 []))
+               (Left $ B.BoardNotReady $ board2 [])
 
 
   describe "attack" $ do
@@ -137,8 +182,6 @@ main = hspec $ do
                   ]
       let game = B.attacksFromList initialGame shots
       -- TODO: Not a real test
-      print (B.board1 $ fromRight game)
-      print (B.board2 $ fromRight game)
       (B.shots . B.board1 $ fromRight $ game) `shouldSatisfy` (not . null)
       (B.shots . B.board2 $ fromRight $ game) `shouldSatisfy` (not . null)
 
