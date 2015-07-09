@@ -31,5 +31,4 @@ test-suite spec
                      , battleship
                      , hspec                 >= 1.8 && < 3
                      , QuickCheck            == 2.*
-                     , mtl
-                     , transformers
+                     , MonadRandom           >= 0.3 && < 0.5

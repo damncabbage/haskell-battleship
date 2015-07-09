@@ -6,7 +6,7 @@ import           Test.Hspec
 import           Test.Hspec.QuickCheck           (prop)
 import           Test.QuickCheck
 import           Data.Functor
-import           Control.Monad
+import           Control.Monad.Random
 
 -- TODO Properties:
 -- - placeShip overlapping existing piece is nothing
@@ -27,19 +27,37 @@ import           Control.Monad
 -- - blank board
 -- - board with pre-placed pieces that do not overlap
 
+
+-- Little helpers for tests
+
 -- HACK: This is kinda hideous. Something to never use outside of test code; at least
 --       it's not a timebomb waiting to go off like it would be in "real" code.
 fromRight :: Show a => Either a c -> c
 fromRight e = either (error . show) id e
 
-shotsCol :: Int -> [a] -> [a]
-shotsCol _ []     = []
-shotsCol 1 (x:xs) = x         : (shotsCol 1 $ drop 1 xs)
-shotsCol 2 (x:xs) = (head xs) : (shotsCol 2 $ drop 1 xs)
-
 merge :: [a] -> [a] -> [a]
 merge [] ys = ys
 merge (x:xs) ys = x:merge ys xs
+
+both :: (a -> b) -> (a,a) -> (b,b)
+both f (a1,a2) = (f a1, f a2)
+
+
+-- Generators
+
+genPlacedBoard :: Gen (Either B.GameError B.Board)
+genPlacedBoard = do -- sized $ \x -> sized $ \y -> do
+    generator <- mkStdGen <$> choose (minBound, maxBound)
+    x <- arbitrary :: Gen (Positive Int)
+    y <- arbitrary :: Gen (Positive Int)
+    let dimensions = both getPositive (x,y)
+    return $ (evalRand (B.mkRandomBoard dimensions ships) generator)
+  where
+    ships = fromRight $ B.shipsFromList [ ("AA", 'A', (1,4))
+                                        , ("BB", 'B', (1,3))
+                                        , ("CC", 'C', (1,2))
+                                        , ("DD", 'D', (1,5))
+                                        ]
 
 
 main :: IO ()
@@ -65,10 +83,10 @@ main = hspec $ do
           eb <- B.mkEmptyBoard size ships
           B.placedBoardFromList eb $ zip3 ships [(1,5),(4,1)] [B.Rightward,B.Downward]
     let game xs = do
-          pb1  <- b1
-          pb2  <- b2
-          game <- B.mkGame (B.Player1,pb1) (B.Player2,pb2)
-          B.attacksFromList game xs
+          pb1 <- b1
+          pb2 <- b2
+          g   <- B.mkGame (B.Player1,pb1) (B.Player2,pb2)
+          B.attacksFromList g xs
 
     it "is a win for Player 1" $ do
       let p1Shots = [ (1,5), (2,5), (3,5), (4,5), (4,1), (4,2), (4,3) ]
