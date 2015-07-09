@@ -113,15 +113,15 @@ data GameError = InvalidDimensions Dimensions
 
 instance Show Board where
   show b =
-    unlines $ [header] <> (map row [1..h])
+    unlines $ ["", header] <> (map row [1..h])
     where
-      (w,h)      = boardDimensions b
-      itemWidth  = 1 + (length $ show h)
-      item       = printf ("%-" <> (show itemWidth) <> "s")
-      tlPadding  = replicate itemWidth ' '
-      header     = tlPadding <> (concatMap (item . show) [1..w])
-      row y      = concat [item (show y), (concatMap (\x -> cellItem (x,y)) [1..w])]
-      cellItem c = item [cell c]
+      (w,h)       = boardDimensions b
+      itemWidth d = 1 + (length $ show d)
+      item d      = printf ("%-" <> (show $ itemWidth d) <> "s")
+      tlPadding   = replicate (itemWidth h) ' '
+      header      = tlPadding <> (concatMap (item w . show) [1..w])
+      row y       = concat [item h (show y), (concatMap (\x -> cellItem (x,y)) [1..w])]
+      cellItem c  = item w [cell c]
       findPlacement c =
         find (elem c . shipPlacementToCoords) (placements b)
       cell c
