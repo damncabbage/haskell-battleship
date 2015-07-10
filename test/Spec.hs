@@ -95,9 +95,10 @@ main = hspec $ do
       --                                P1 sinks B, game over --^
       let finalGame = fromRight $ game $ merge p1Shots p2Shots
       (B.attack finalGame (1,4)) `shouldBe` (Left B.GameFinished)
+      (B.finished finalGame    ) `shouldBe` True
       (B.winner finalGame      ) `shouldBe` (Just B.Player1)
       (B.finished finalGame    ) `shouldBe` True
-      (B.shots . B.board1 $ finalGame) `shouldBe` (map (\s -> (s,B.Hit)) p1Shots)
+      (B.shots . B.board2 $ finalGame) `shouldBe` (map (\s -> (s,B.Hit)) p1Shots)
 
   describe "boardLargeEnoughForShips" $ do
     it "uses the longest ship and ship area to determine the minimum size" $ do

@@ -233,21 +233,21 @@ placedBoardFromList = foldM placeShip
 
 attack :: Game -> Coords -> Either GameError Game
 attack g c
-  | not $ inBounds board c = Left OutOfBounds
-  | repeated c             = Left DuplicateShot
-  | finished g             = Left GameFinished
-  | otherwise              = Right appendedShotAndSwappedPlayer
+  | not $ inBounds targetBoard c = Left OutOfBounds
+  | repeated c                   = Left DuplicateShot
+  | finished g                   = Left GameFinished
+  | otherwise                    = Right appendedShotAndSwappedPlayer
   where
     appendedShotAndSwappedPlayer =
-      player1Or2 (g { board1 = appendedShot, currentPlayer = player2 g })
-                 (g { board2 = appendedShot, currentPlayer = player1 g })
+      player1Or2 (g { board2 = appendedShot, currentPlayer = player2 g })
+                 (g { board1 = appendedShot, currentPlayer = player1 g })
     inBounds (boardDimensions -> (bw,bh)) (cx,cy) =
       (cx >= 1) && (cx <= bw) &&
       (cy >= 1) && (cy <= bh)
-    board        = player1Or2 (board1 g) (board2 g)
-    repeated s   = elem s (shotsCoords board)
-    result       = maybe Miss (const Hit) $ find (elem c . shipPlacementToCoords) (placements board)
-    appendedShot = board { shots = (shots board) <> [(c,result)] }
+    targetBoard  = player1Or2 (board2 g) (board1 g)
+    repeated s   = elem s (shotsCoords targetBoard)
+    result       = maybe Miss (const Hit) $ find (elem c . shipPlacementToCoords) (placements targetBoard)
+    appendedShot = targetBoard { shots = (shots targetBoard) <> [(c,result)] }
     player1Or2 fp1 fp2
       | (currentPlayer g) == (player1 g) = fp1
       | (currentPlayer g) == (player2 g) = fp2
@@ -261,8 +261,8 @@ finished g = boardFinished (board1 g) || boardFinished (board2 g)
 
 winner :: Game -> Maybe Player
 winner g
-  | boardFinished (board1 g) = Just (player1 g)
-  | boardFinished (board2 g) = Just (player2 g)
+  | boardFinished (board1 g) = Just (player2 g)
+  | boardFinished (board2 g) = Just (player1 g)
   | otherwise                = Nothing
 
 boardFinished :: Board -> Bool
