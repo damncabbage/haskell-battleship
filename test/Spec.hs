@@ -71,7 +71,7 @@ main = hspec $ do
   --    4 A · · · · ·       4 · · · · · ·
   --    5 · · · · · ·       5 A A A A · ·
   --    6 · · · · · ·       6 · · · · · ·
-  describe "big dumb happy-path run-through of the entire set of exported headlining functions" $ do
+  describe "big, dumb, happy-path run-through of the entire set of exported headlining functions" $ do
     let size  = (6,6)
     let ships = mkShips [ ("AA", 'A', (1,4))
                         , ("BB", 'B', (1,3))
@@ -94,11 +94,24 @@ main = hspec $ do
       -- P1 sinks A, P2 only hit one of A --^
       --                                P1 sinks B, game over --^
       let finalGame = fromRight $ game $ merge p1Shots p2Shots
-      (B.attack finalGame (1,4)) `shouldBe` (Left B.GameFinished)
-      (B.finished finalGame    ) `shouldBe` True
-      (B.winner finalGame      ) `shouldBe` (Just B.Player1)
-      (B.finished finalGame    ) `shouldBe` True
-      (B.shots . B.board2 $ finalGame) `shouldBe` (map (\s -> (s,B.Hit)) p1Shots)
+      B.attack finalGame (1,4) `shouldBe` Left B.GameFinished -- No more attacks allowed.
+      B.finished finalGame     `shouldBe` True
+      B.winner finalGame       `shouldBe` Just B.Player1
+      (B.shots . B.board2 $ finalGame)      `shouldBe` map (\s -> (s,B.Hit)) p1Shots -- Shot results
+      map fst (shotsFor B.board1 finalGame) `shouldBe` p2Shots -- Check at least that the shot coords are recorded.
+
+    it "is a win for Player 2" $ do
+      let p1Shots = [ (1,2), (2,3), (3,4), (4,5), (5,6), (2,1), (3,2) ]
+      let p2Shots = [ (1,1), (1,2), (1,3), (1,4), (2,3), (3,3), (4,3) ]
+      -- P2 sinks A, P1 only hit one of A --^
+      --                                P2 sinks B, game over --^
+      let finalGame = fromRight $ game $ merge p1Shots p2Shots
+      B.attack   finalGame (1,4) `shouldBe` Left B.GameFinished -- No more attacks allowed.
+      B.finished finalGame       `shouldBe` True
+      B.winner   finalGame       `shouldBe` Just B.Player2
+      (B.shots . B.board1 $ finalGame)      `shouldBe` map (\s -> (s,B.Hit)) p2Shots -- Shot results
+      map fst (shotsFor B.board2 finalGame) `shouldBe` p1Shots -- Check at least that the shot coords are recorded.
+
 
   describe "boardLargeEnoughForShips" $ do
     it "uses the longest ship and ship area to determine the minimum size" $ do
