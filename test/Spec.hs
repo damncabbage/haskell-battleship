@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+
 module Main where
 
 import qualified Data.Battleship                 as B
@@ -5,6 +7,7 @@ import qualified Data.Battleship                 as B
 import           Test.Hspec
 import           Test.Hspec.QuickCheck           (prop)
 import           Test.QuickCheck
+import           Test.QuickCheck.Gen
 import           Data.Functor
 import           Control.Monad.Random
 
@@ -45,19 +48,31 @@ both f (a1,a2) = (f a1, f a2)
 
 -- Generators
 
-genPlacedBoard :: Gen (Either B.GameError B.Board)
-genPlacedBoard = do -- sized $ \x -> sized $ \y -> do
-    generator <- mkStdGen <$> choose (minBound, maxBound)
-    x <- arbitrary :: Gen (Positive Int)
-    y <- arbitrary :: Gen (Positive Int)
-    let dimensions = both getPositive (x,y)
-    return $ (evalRand (B.mkRandomBoard dimensions ships) generator)
-  where
-    ships = fromRight $ B.shipsFromList [ ("AA", 'A', (1,4))
-                                        , ("BB", 'B', (1,3))
-                                        , ("CC", 'C', (1,2))
-                                        , ("DD", 'D', (1,5))
-                                        ]
+genPlacedBoard :: [B.Ship] -> Gen (Either B.GameError B.Board)
+genPlacedBoard ships = do -- sized $ \x -> sized $ \y -> do
+  generator <- mkStdGen <$> choose (minBound, maxBound)
+  x <- arbitrary :: Gen (Positive Int)
+  y <- arbitrary :: Gen (Positive Int)
+  let dimensions = both getPositive (x,y)
+  return $ (evalRand (B.mkRandomBoard dimensions ships) generator)
+
+instance Arbitrary (Either B.GameError [B.Ship]) where
+  arbitrary = return $ B.shipsFromList [ ("AA", 'A', (1,4))
+                                       , ("BB", 'B', (1,3))
+                                       , ("CC", 'C', (1,2))
+                                       , ("DD", 'D', (1,5))
+                                       ]
+
+-- TODO: This is hideous; I *think* this is where ExceptT would be useful to bring in.
+instance Arbitrary (Either B.GameError B.Game) where
+  arbitrary = do
+    ships  <- arbitrary :: Gen (Either B.GameError [B.Ship])
+    board1 <- either (return . Left) (genPlacedBoard) ships
+    board2 <- either (return . Left) (genPlacedBoard) ships
+    return $ do
+      b1 <- board1
+      b2 <- board2
+      B.mkGame (B.Player1,b1) (B.Player2,b2)
 
 
 main :: IO ()
@@ -98,7 +113,7 @@ main = hspec $ do
       B.finished finalGame     `shouldBe` True
       B.winner finalGame       `shouldBe` Just B.Player1
       (B.shots . B.board2 $ finalGame)      `shouldBe` map (\s -> (s,B.Hit)) p1Shots -- Shot results
-      map fst (shotsFor B.board1 finalGame) `shouldBe` p2Shots -- Check at least that the shot coords are recorded.
+      map fst (B.shots . B.board1 $  finalGame) `shouldBe` p2Shots -- Check at least that the shot coords are recorded.
 
     it "is a win for Player 2" $ do
       let p1Shots = [ (1,2), (2,3), (3,4), (4,5), (5,6), (2,1), (3,2) ]
@@ -110,7 +125,15 @@ main = hspec $ do
       B.finished finalGame       `shouldBe` True
       B.winner   finalGame       `shouldBe` Just B.Player2
       (B.shots . B.board1 $ finalGame)      `shouldBe` map (\s -> (s,B.Hit)) p2Shots -- Shot results
-      map fst (shotsFor B.board2 finalGame) `shouldBe` p1Shots -- Check at least that the shot coords are recorded.
+      map fst (B.shots . B.board2 $ finalGame) `shouldBe` p1Shots -- Check at least that the shot coords are recorded.
+
+--  describe "miscellaneous properties" $ do
+--    -- prop "overlapping ships produces a failure result" $ do
+--    --   \x -> showBoard x === show (fromJust (mkEmptyBoard (10,10) []))
+--    prop "repeated shots by a single player are not allowed" $ do
+--      \g x y -> (B.attacksFromList
+--                  (fromRight g)
+--                  [(x,y), (1,1), (x,y)]) === Left B.DuplicateShot
 
 
   describe "boardLargeEnoughForShips" $ do
