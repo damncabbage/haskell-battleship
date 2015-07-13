@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, OverlappingInstances #-}
 
 module Main where
 
@@ -48,12 +48,9 @@ both f (a1,a2) = (f a1, f a2)
 
 -- Generators
 
-genPlacedBoard :: [B.Ship] -> Gen (Either B.GameError B.Board)
-genPlacedBoard ships = do -- sized $ \x -> sized $ \y -> do
+genPlacedBoard :: B.Dimensions -> [B.Ship] -> Gen (Either B.GameError B.Board)
+genPlacedBoard dimensions ships = do
   generator <- mkStdGen <$> choose (minBound, maxBound)
-  x <- arbitrary :: Gen (Positive Int)
-  y <- arbitrary :: Gen (Positive Int)
-  let dimensions = both getPositive (x,y)
   return $ (evalRand (B.mkRandomBoard dimensions ships) generator)
 
 instance Arbitrary (Either B.GameError [B.Ship]) where
@@ -65,10 +62,12 @@ instance Arbitrary (Either B.GameError [B.Ship]) where
 
 -- TODO: This is hideous; I *think* this is where ExceptT would be useful to bring in.
 instance Arbitrary (Either B.GameError B.Game) where
-  arbitrary = do
+  arbitrary = sized $ \n -> do
+    x      <- choose (1,n)
+    y      <- choose (1,n)
     ships  <- arbitrary :: Gen (Either B.GameError [B.Ship])
-    board1 <- either (return . Left) (genPlacedBoard) ships
-    board2 <- either (return . Left) (genPlacedBoard) ships
+    board1 <- either (return . Left) (genPlacedBoard (x,y)) ships
+    board2 <- either (return . Left) (genPlacedBoard (x,y)) ships
     return $ do
       b1 <- board1
       b2 <- board2
