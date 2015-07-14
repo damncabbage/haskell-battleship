@@ -104,7 +104,7 @@ data GameError = InvalidDimensions Dimensions
                | InvalidInitial Char
                | InvalidName String
                | NoShips
-               | MismatchedBoards b1 b2
+               | MismatchedBoards Board Board
                | DuplicatePlayers Player
                | DuplicateShot
                | OutOfBounds
