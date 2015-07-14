@@ -44,6 +44,7 @@ module Data.Battleship (
   boardFinished,
 
   -- HACK TODO: Exporting record fields is /not/ safe.
+  currentPlayer,
   board1,
   board2,
   placements,
@@ -103,6 +104,7 @@ data GameError = InvalidDimensions Dimensions
                | InvalidInitial Char
                | InvalidName String
                | NoShips
+               | MismatchedBoards b1 b2
                | DuplicatePlayers Player
                | DuplicateShot
                | OutOfBounds
@@ -193,17 +195,19 @@ mkRandomBoard dims ships = do
 
 mkGame :: (Player,Board) -> (Player,Board) -> Either GameError Game
 mkGame (p1,b1) (p2,b2)
-  | p1 == p2      = Left $ DuplicatePlayers p1
-  | incomplete b1 = Left $ BoardNotReady b1
-  | incomplete b2 = Left $ BoardNotReady b2
-  | otherwise     = Right $ Game { currentPlayer = p1 -- Just default to the first, whatever it is.
-                                 , player1 = p1
-                                 , board1  = b1
-                                 , player2 = p2
-                                 , board2  = b2
-                                 }
+  | p1 == p2             = Left $ DuplicatePlayers p1
+  | incomplete b1        = Left $ BoardNotReady b1
+  | incomplete b2        = Left $ BoardNotReady b2
+  | differingSizes b1 b2 = Left $ MismatchedBoards b1 b2 -- TODO: Is this a hard constraint?
+  | otherwise            = Right $ Game { currentPlayer = p1 -- Just default to the first, whatever it is.
+                                        , player1 = p1
+                                        , board1  = b1
+                                        , player2 = p2
+                                        , board2  = b2
+                                        }
   where
-    incomplete b = (validShips b) /= (map shipFromPlacement $ placements b)
+    incomplete b       = (validShips b) /= (map shipFromPlacement $ placements b)
+    differingSizes a b = (boardDimensions a) /= (boardDimensions b)
 
 placeShip :: Board -> ShipPlacement -> Either GameError Board
 placeShip b p
