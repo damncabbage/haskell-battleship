@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances, OverlappingInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Main where
 
@@ -9,6 +9,7 @@ import           Test.Hspec.QuickCheck           (prop)
 import           Test.QuickCheck
 import           Test.QuickCheck.Gen
 import           Data.Functor
+import           Data.Either
 import           Control.Monad.Random
 
 -- TODO Properties:
@@ -29,6 +30,7 @@ import           Control.Monad.Random
 
 -- - blank board
 -- - board with pre-placed pieces that do not overlap
+
 
 
 -- Little helpers for tests
@@ -53,21 +55,28 @@ genPlacedBoard dimensions ships = do
   generator <- mkStdGen <$> choose (minBound, maxBound)
   return $ (evalRand (B.mkRandomBoard dimensions ships) generator)
 
-instance Arbitrary (Either B.GameError [B.Ship]) where
-  arbitrary = return $ B.shipsFromList [ ("AA", 'A', (1,4))
-                                       , ("BB", 'B', (1,3))
-                                       , ("CC", 'C', (1,2))
-                                       , ("DD", 'D', (1,5))
-                                       ]
+genShip :: B.Dimensions -> Gen (Either B.GameError B.Ship)
+genShip (x,y) = do
+  w       <- frequency [(5, return 1),    (1, choose(1,maxDim))]
+  h       <- frequency [(5, choose(1,6)), (1, choose(1,maxDim))]
+  name    <- listOf1 $ elements latinChars
+  initial <- choose ('A','Z')
+  return $ B.mkShip name initial (w,h)
+  where
+    maxDim     = maximum [x,y]
+    latinChars = concat [[' '],['A'..'Z'],['a'..'z'],['1'..'9']]
 
--- TODO: This is hideous; I *think* this is where ExceptT would be useful to bring in.
+genShips :: B.Dimensions -> Gen [B.Ship]
+genShips dimensions = rights <$> listOf1 (genShip dimensions)
+
+-- TODO: This is a little hideous; I *think* this is where ExceptT would be useful to bring in.
 instance Arbitrary (Either B.GameError B.Game) where
   arbitrary = sized $ \n -> do
-    x      <- choose (1,n)
-    y      <- choose (1,n)
-    ships  <- arbitrary :: Gen (Either B.GameError [B.Ship])
-    board1 <- either (return . Left) (genPlacedBoard (x,y)) ships
-    board2 <- either (return . Left) (genPlacedBoard (x,y)) ships
+    w      <- choose (1,n)
+    h      <- choose (1,n)
+    ships  <- genShips (w,h)
+    board1 <- genPlacedBoard (w,h) ships
+    board2 <- genPlacedBoard (w,h) ships
     return $ do
       b1 <- board1
       b2 <- board2

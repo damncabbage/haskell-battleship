@@ -47,8 +47,13 @@ module Data.Battleship (
   currentPlayer,
   board1,
   board2,
+
   placements,
-  shots
+  shots,
+
+  name,
+  initial,
+  shipDimensions
 ) where
 
 import Data.Maybe             ( Maybe(Just,Nothing),isJust,maybe )
