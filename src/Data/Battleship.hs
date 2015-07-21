@@ -105,14 +105,16 @@ data Game  = Game {
 --         data Game  = InPlayGame | FinishedGame ...
 --       ... then only accepting an InPlayGame for attack and PlacedBoard for
 --       mkGame or something.
-data GameError = InvalidDimensions Dimensions
+data GameError = InvalidBoardDimensions Dimensions
+               | InvalidShipDimensions Dimensions
                | InvalidInitial Char
                | InvalidName String
+               | OutOfBoundsShip
                | NoShips
                | MismatchedBoards Board Board
                | DuplicatePlayers Player
                | DuplicateShot
-               | OutOfBounds
+               | OutOfBoundsShot Coords
                | OverlapsPlacedShip
                | BoardNotReady Board
                | GameFinished
@@ -155,7 +157,7 @@ shipsFromList = sequence . map (\(n,i,p) -> mkShip n i p)
 
 mkShip :: String -> Char -> (Int,Int) -> Either GameError Ship
 mkShip n i d
-  | not $ vDims d        = Left $ InvalidDimensions d
+  | not $ vDims d        = Left $ InvalidShipDimensions d
   | notElem i ['A'..'Z'] = Left $ InvalidInitial i
   | length n <= 0        = Left $ InvalidName n
   | otherwise            = Right $ Ship { name = n, initial = i, shipDimensions = d }
@@ -177,7 +179,7 @@ boardLargeEnoughForShips (x,y) ships =
 mkEmptyBoard :: Dimensions -> [Ship] -> Either GameError Board
 mkEmptyBoard d s
   | null s                             = Left $ NoShips
-  | not (boardLargeEnoughForShips d s) = Left $ InvalidDimensions d
+  | not (boardLargeEnoughForShips d s) = Left $ InvalidBoardDimensions d
   | otherwise =
       Right Board { boardDimensions = d, placements = [], shots = [], validShips = s }
 
@@ -192,7 +194,7 @@ mkRandomBoard dims ships = do
       nb <- depthFirstGraphSearch ordering
                                   (\b -> length(placements(b)) == length(validShips(b)))
                                   (graph board)
-      return $ maybe (Left $ InvalidDimensions dims) -- Arguably a bug in boardLargeEnoughForShips
+      return $ maybe (Left $ InvalidBoardDimensions dims) -- Arguably a bug in boardLargeEnoughForShips
                      (Right)
                      (nb)
     graph b = placementsGraph placementStep ships b
@@ -216,7 +218,7 @@ mkGame (p1,b1) (p2,b2)
 
 placeShip :: Board -> ShipPlacement -> Either GameError Board
 placeShip b p
-  | not $ inBounds (boardDimensions b) p = Left OutOfBounds
+  | not $ inBounds (boardDimensions b) p = Left $ OutOfBoundsShip
   | (any (overlapping p) (placements b)) = Left OverlapsPlacedShip
   | otherwise = Right b { placements = placements b <> [p] }
   where
@@ -242,7 +244,7 @@ placedBoardFromList = foldM placeShip
 
 attack :: Game -> Coords -> Either GameError Game
 attack g c
-  | not $ inBounds targetBoard c = Left OutOfBounds
+  | not $ inBounds targetBoard c = Left $ OutOfBoundsShot c
   | repeated c                   = Left DuplicateShot
   | finished g                   = Left GameFinished
   | otherwise                    = Right appendedShotAndSwappedPlayer

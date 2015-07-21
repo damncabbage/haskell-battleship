@@ -70,17 +70,17 @@ genShips :: B.Dimensions -> Gen [B.Ship]
 genShips dimensions = rights <$> listOf1 (genShip dimensions)
 
 -- TODO: This is a little hideous; I *think* this is where ExceptT would be useful to bring in.
-instance Arbitrary (Either B.GameError B.Game) where
-  arbitrary = sized $ \n -> do
-    w      <- choose (1,n)
-    h      <- choose (1,n)
-    ships  <- genShips (w,h)
-    board1 <- genPlacedBoard (w,h) ships
-    board2 <- genPlacedBoard (w,h) ships
-    return $ do
-      b1 <- board1
-      b2 <- board2
-      B.mkGame (B.Player1,b1) (B.Player2,b2)
+genNewGame :: Gen (Either B.GameError B.Game)
+genNewGame = sized $ \n -> do
+  w      <- choose (1,1+n)
+  h      <- choose (1,1+n)
+  ships  <- genShips (w,h)
+  board1 <- genPlacedBoard (w,h) ships
+  board2 <- genPlacedBoard (w,h) ships
+  return $ do
+    b1 <- board1
+    b2 <- board2
+    B.mkGame (B.Player1,b1) (B.Player2,b2)
 
 
 main :: IO ()
@@ -134,6 +134,11 @@ main = hspec $ do
       B.winner   finalGame       `shouldBe` Just B.Player2
       (B.shots . B.board1 $ finalGame)      `shouldBe` map (\s -> (s,B.Hit)) p2Shots -- Shot results
       map fst (B.shots . B.board2 $ finalGame) `shouldBe` p1Shots -- Check at least that the shot coords are recorded.
+
+    describe "miscellaneous properties" $ do
+      prop "repeated shots by a single player are not allowed" $ do
+        forAll genNewGame $ \g x y ->
+          (isRight g && x > 0 && y > 0) ==> (B.attacksFromList (fromRight g) [(x,y), (1,1), (x,y)] === Left B.DuplicateShot)
 
 --  describe "miscellaneous properties" $ do
 --    -- prop "overlapping ships produces a failure result" $ do
