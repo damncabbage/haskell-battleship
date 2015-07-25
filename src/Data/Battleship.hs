@@ -42,6 +42,7 @@ module Data.Battleship (
   placedBoardFromList,
   attacksFromList,
   boardFinished,
+  coordsInBoardBounds,
 
   -- HACK TODO: Exporting record fields is /not/ safe.
   currentPlayer,
@@ -218,11 +219,11 @@ mkGame (p1,b1) (p2,b2)
 
 placeShip :: Board -> ShipPlacement -> Either GameError Board
 placeShip b p
-  | not $ inBounds (boardDimensions b) p = Left $ OutOfBoundsShip
-  | (any (overlapping p) (placements b)) = Left OverlapsPlacedShip
+  | not $ placementInBounds (boardDimensions b) p = Left OutOfBoundsShip
+  | (any (overlapping p) (placements b))          = Left OverlapsPlacedShip
   | otherwise = Right b { placements = placements b <> [p] }
   where
-    inBounds (bw,bh) (shipDimensions -> (sx,sy), (cx,cy), dir) =
+    placementInBounds (bw,bh) (shipDimensions -> (sx,sy), (cx,cy), dir) =
       case dir of
         Downward  -> cx > 0 && cy > 0 && cx + (sx - 1) <= bw && cy + (sy - 1) <= bh
         Rightward -> cx > 0 && cy > 0 && cx + (sy - 1) <= bw && cy + (sx - 1) <= bh
@@ -244,17 +245,14 @@ placedBoardFromList = foldM placeShip
 
 attack :: Game -> Coords -> Either GameError Game
 attack g c
-  | not $ inBounds targetBoard c = Left $ OutOfBoundsShot c
-  | repeated c                   = Left DuplicateShot
-  | finished g                   = Left GameFinished
-  | otherwise                    = Right appendedShotAndSwappedPlayer
+  | not $ coordsInBoardBounds targetBoard c = Left $ OutOfBoundsShot c
+  | repeated c                              = Left DuplicateShot
+  | finished g                              = Left GameFinished
+  | otherwise                               = Right appendedShotAndSwappedPlayer
   where
     appendedShotAndSwappedPlayer =
       player1Or2 (g { board2 = appendedShot, currentPlayer = player2 g })
                  (g { board1 = appendedShot, currentPlayer = player1 g })
-    inBounds (boardDimensions -> (bw,bh)) (cx,cy) =
-      (cx >= 1) && (cx <= bw) &&
-      (cy >= 1) && (cy <= bh)
     targetBoard  = player1Or2 (board2 g) (board1 g)
     repeated s   = elem s (shotsCoords targetBoard)
     result       = maybe Miss (const Hit) $ find (elem c . shipPlacementToCoords) (placements targetBoard)
@@ -266,6 +264,12 @@ attack g c
 
 attacksFromList :: Game -> [Coords] -> Either GameError Game
 attacksFromList = foldM attack
+
+coordsInBoardBounds :: Board -> Coords -> Bool
+coordsInBoardBounds (boardDimensions -> (bw,bh)) (cx,cy) =
+  (cx >= 1) && (cx <= bw) &&
+  (cy >= 1) && (cy <= bh)
+
 
 finished :: Game -> Bool
 finished g = boardFinished (board1 g) || boardFinished (board2 g)

@@ -11,6 +11,7 @@ import           Test.QuickCheck.Gen
 import           Data.Functor
 import           Data.Either
 import           Control.Monad.Random
+import           Debug.Trace
 
 -- TODO Properties:
 -- - placeShip overlapping existing piece is nothing
@@ -70,11 +71,10 @@ genShips :: B.Dimensions -> Gen [B.Ship]
 genShips dimensions = rights <$> listOf1 (genShip dimensions)
 
 -- TODO: This is a little hideous; I *think* this is where ExceptT would be useful to bring in.
-genNewGame :: Gen (Either B.GameError B.Game)
-genNewGame = sized $ \n -> do
-  w      <- choose (1,1+n)
-  h      <- choose (1,1+n)
+genNewGameWithBoardDimensions :: B.Dimensions -> Gen (Either B.GameError B.Game)
+genNewGameWithBoardDimensions (w,h) = do
   ships  <- genShips (w,h)
+  trace (show . length $ ships) (return ships)
   board1 <- genPlacedBoard (w,h) ships
   board2 <- genPlacedBoard (w,h) ships
   return $ do
@@ -82,6 +82,17 @@ genNewGame = sized $ \n -> do
     b2 <- board2
     B.mkGame (B.Player1,b1) (B.Player2,b2)
 
+genNewGame :: Gen (Either B.GameError B.Game)
+genNewGame = sized $ \n -> do
+  w      <- choose (1,1+n)
+  h      <- choose (1,1+n)
+  genNewGameWithBoardDimensions (w,h)
+
+prop_RepeatedAttack =
+  forAll (genNewGameWithBoardDimensions B.defaultBoardDimensions) $ \g x y ->
+    --traceShow g $ (isRight g && B.coordsInBoardBounds (B.board1 $ fromRight g) (x,y))
+    (isRight g && B.coordsInBoardBounds (B.board1 $ fromRight g) (x,y))
+      ==> (B.attacksFromList (fromRight g) [(x,y), (1,1), (x,y)] === Left B.DuplicateShot)
 
 main :: IO ()
 main = hspec $ do
@@ -135,10 +146,7 @@ main = hspec $ do
       (B.shots . B.board1 $ finalGame)      `shouldBe` map (\s -> (s,B.Hit)) p2Shots -- Shot results
       map fst (B.shots . B.board2 $ finalGame) `shouldBe` p1Shots -- Check at least that the shot coords are recorded.
 
-    describe "miscellaneous properties" $ do
-      prop "repeated shots by a single player are not allowed" $ do
-        forAll genNewGame $ \g x y ->
-          (isRight g && x > 0 && y > 0) ==> (B.attacksFromList (fromRight g) [(x,y), (1,1), (x,y)] === Left B.DuplicateShot)
+--    describe "miscellaneous properties" $ do
 
 --  describe "miscellaneous properties" $ do
 --    -- prop "overlapping ships produces a failure result" $ do
