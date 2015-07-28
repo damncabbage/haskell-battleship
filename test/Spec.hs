@@ -70,3 +70,95 @@ main = hspec $ do
       (B.boardLargeEnoughForShips (5,4) ships) `shouldBe` True
       (B.boardLargeEnoughForShips (4,3) ships) `shouldBe` False
       (B.boardLargeEnoughForShips (5,2) ships) `shouldBe` False
+
+
+  -- TODO: There is a lot of test-setup repetition in this section; a lot of these need to be turned into property tests
+  -- (see the list in test/Properties.hs).
+
+  describe "placeShip" $ do
+    let ships = mkShips [ ("AA", 'A', (1,5))
+                        , ("BB", 'B', (2,4))
+                        , ("CC", 'C', (1,4))
+                        ]
+    let defPlacements = [ (ships !! 0, (1,1), B.Downward)
+                        , (ships !! 1, (2,3), B.Rightward)
+                        ]
+    let boardWith p = do
+          board <- B.mkEmptyBoard (6,6) ships
+          B.placedBoardFromList board p
+
+    --   1 2 3 4 5 6
+    -- 1 A · · · · ·
+    -- 2 A · · · · ·
+    -- 3 A B B B B ·
+    -- 4 A B B B B ·
+    -- 5 A · · · · ·
+    -- 6 · · · · · ·
+    it "allows non-overlapping placement" $ do
+      let p = defPlacements ++ [(ships !! 2, (6,1), B.Downward)]
+      (B.placements $ fromRight $ boardWith p) `shouldBe` p
+
+    it "disallows overlapping placement" $ do
+      let p = defPlacements ++ [(ships !! 2, (2,1), B.Downward)] -- Overlapping Ship B
+      boardWith p `shouldBe` Left B.OverlapsPlacedShip
+
+
+  describe "mkGame" $ do
+    let ships = mkShips [ ("AA", 'A', (1,5))
+                        , ("BB", 'B', (2,4))
+                        , ("CC", 'C', (1,4))
+                        ]
+    let defPlacements = [ (ships !! 0, (1,1), B.Downward)
+                        , (ships !! 1, (2,3), B.Rightward)
+                        ]
+    let boardSetup p = do
+          eboard <- B.mkEmptyBoard (6,6) ships
+          B.placedBoardFromList eboard p
+    let board1 p = fromRight $ boardSetup (defPlacements ++ p)
+    let board2 p = fromRight $ boardSetup (defPlacements ++ p)
+
+    it "disallows an incomplete board to be used" $ do
+      let s = (ships !! 2, (2,1), B.Rightward)
+      shouldBe (B.mkGame (B.Player1,board1 []) (B.Player2,board2 [s]))
+               (Left $ B.BoardNotReady $ board1 [])
+      shouldBe (B.mkGame (B.Player1,board1 [s]) (B.Player2,board2 []))
+               (Left $ B.BoardNotReady $ board2 [])
+
+
+  describe "attack" $ do
+    let ships = mkShips [ ("AA", 'A', (1,5))
+                        , ("BB", 'B', (2,4))
+                        , ("CC", 'C', (1,4))
+                        ]
+    let defPlacements = [ (ships !! 0, (1,1), B.Downward)
+                        , (ships !! 1, (2,3), B.Rightward)
+                        ]
+    let gameSetup = do
+          eboard1 <- B.mkEmptyBoard (6,6) ships
+          eboard2 <- B.mkEmptyBoard (6,6) ships
+          pboard1 <- B.placedBoardFromList eboard1 (defPlacements ++ [(ships !! 2, (6,1), B.Downward)])
+          pboard2 <- B.placedBoardFromList eboard2 (defPlacements ++ [(ships !! 2, (6,1), B.Downward)])
+          B.mkGame (B.Player1,pboard1) (B.Player2,pboard2)
+
+    let initialGame = fromRight gameSetup
+
+    it "allows valid shots" $ do
+      let shots = [ (3,3)
+                  , (3,3)
+                  ]
+      let game = B.attacksFromList initialGame shots
+      -- TODO: Not a real test
+      (B.shots . B.board1 $ fromRight $ game) `shouldSatisfy` (not . null)
+      (B.shots . B.board2 $ fromRight $ game) `shouldSatisfy` (not . null)
+
+    it "is an example game set of shots with some debug prints to rip out" $ do
+      let shots = [ (3,3)
+                  , (3,4)
+                  , (5,6)
+                  , (3,5)
+                  , (6,3)
+                  , (5,5)
+                  ]
+      let game = B.attacksFromList initialGame shots
+      (B.shots . B.board1 $ fromRight $ game) `shouldSatisfy` (not . null)
+      (B.shots . B.board2 $ fromRight $ game) `shouldSatisfy` (not . null)

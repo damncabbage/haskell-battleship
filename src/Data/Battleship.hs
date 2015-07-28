@@ -15,6 +15,9 @@ module Data.Battleship (
   Coords,
   Dimensions,
   Direction(..),
+  Game,
+  Player(..),
+  Result(..),
   Ship,
   ShipPlacement,
   GameError(..),
@@ -23,7 +26,11 @@ module Data.Battleship (
   mkShip,
   mkEmptyBoard,
   mkRandomBoard,
+  mkGame,
   placeShip,
+  attack,
+  finished,
+  winner,
 
   -- Helpers (for tests, but still safe)
   defaultShips,
@@ -40,6 +47,10 @@ module Data.Battleship (
   -- TODO: Exporting record fields is /not/ safe.
   --       Need to rename fields to _foo, _barBaz, etc. and expose
   --       "read-only" helpers that call the internal underscored versions.
+  currentPlayer,
+  board1,
+  board2,
+
   boardDimensions,
   placements,
   shots,
@@ -64,6 +75,8 @@ import Prelude                ( Bool,Char,Eq,Int,Show,String,Either(Left,Right)
                               )
 
 data Direction     = Downward | Rightward     deriving(Show,Eq)
+data Result        = Hit | Miss               deriving(Show,Eq)
+data Player        = Player1 | Player2        deriving(Show,Eq)
 data Ship          = Ship {
                        name           :: String,
                        initial        :: Char,
@@ -80,6 +93,13 @@ data Board = Board {
                shots           :: [(Coords,Result)],
                validShips      :: [Ship]
              } deriving(Eq)
+data Game  = Game {
+               currentPlayer :: Player,
+               player1       :: Player,
+               board1        :: Board,
+               player2       :: Player,
+               board2        :: Board
+             } deriving(Show,Eq)
 
 -- TODO: Consider splitting this into different groups; "preparatory" sort of
 --       errors, and "game errors".
@@ -96,6 +116,13 @@ data GameError = InvalidBoardDimensions Dimensions [Ship]
                | InvalidShipName String
                | OutOfBoundsShip
                | NoShips
+               | MismatchedBoards Board Board
+               | DuplicatePlayers Player
+               | DuplicateShot
+               | OutOfBoundsShot Coords
+               | OverlapsPlacedShip
+               | BoardNotReady Board
+               | GameFinished
   deriving(Show,Eq)
 
 
@@ -181,6 +208,22 @@ mkRandomBoard dims ships = do
     graph b = placementsGraph placementStep ships b
     ordering = shuffleM
 
+mkGame :: (Player,Board) -> (Player,Board) -> Either GameError Game
+mkGame (p1,b1) (p2,b2)
+  | p1 == p2             = Left $ DuplicatePlayers p1
+  | incomplete b1        = Left $ BoardNotReady b1
+  | incomplete b2        = Left $ BoardNotReady b2
+  | differingSizes b1 b2 = Left $ MismatchedBoards b1 b2 -- TODO: Is this a hard constraint of the game?
+  | otherwise            = Right $ Game { currentPlayer = p1 -- Just default to the first, whatever it is.
+                                        , player1 = p1
+                                        , board1  = b1
+                                        , player2 = p2
+                                        , board2  = b2
+                                        }
+  where
+    incomplete b       = (validShips b) /= (map shipFromPlacement $ placements b)
+    differingSizes a b = (boardDimensions a) /= (boardDimensions b)
+
 placeShip :: Board -> ShipPlacement -> Either GameError Board
 placeShip b p
   | not $ placementInBounds (boardDimensions b) p = Left OutOfBoundsShip
@@ -207,10 +250,50 @@ placeShip b p
 placedBoardFromList :: Board -> [ShipPlacement] -> Either GameError Board
 placedBoardFromList = foldM placeShip
 
+attack :: Game -> Coords -> Either GameError Game
+attack g c
+  | not $ coordsInBounds (boardDimensions targetBoard) c
+                = Left $ OutOfBoundsShot c
+  | repeated c  = Left DuplicateShot
+  | finished g  = Left GameFinished
+  | otherwise   = Right appendedShotAndSwappedPlayer
+  where
+    appendedShotAndSwappedPlayer =
+      player1Or2 (g { board2 = appendedShot, currentPlayer = player2 g })
+                 (g { board1 = appendedShot, currentPlayer = player1 g })
+    targetBoard  = player1Or2 (board2 g) (board1 g)
+    repeated s   = elem s (shotsCoords targetBoard)
+    result       = maybe Miss (const Hit) $ find (elem c . shipPlacementToCoords) (placements targetBoard)
+    appendedShot = targetBoard { shots = (shots targetBoard) <> [(c,result)] }
+    player1Or2 fp1 fp2
+      | (currentPlayer g) == (player1 g) = fp1
+      | (currentPlayer g) == (player2 g) = fp2
+      | otherwise                        = error "BUG: currentPlayer is neither player1 or player2"
+
+attacksFromList :: Game -> [Coords] -> Either GameError Game
+attacksFromList = foldM attack
+
 coordsInBounds :: Dimensions -> Coords -> Bool
 coordsInBounds (bw,bh) (cx,cy) =
   (cx >= 1) && (cx <= bw) &&
   (cy >= 1) && (cy <= bh)
+
+
+finished :: Game -> Bool
+finished g = boardFinished (board1 g) || boardFinished (board2 g)
+
+winner :: Game -> Maybe Player
+winner g
+  | boardFinished (board1 g) = Just (player2 g)
+  | boardFinished (board2 g) = Just (player1 g)
+  | otherwise                = Nothing
+
+boardFinished :: Board -> Bool
+boardFinished b =
+  (shotSquares `intersect` shipSquares) == shipSquares -- All ships covered by shots?
+  where
+    shotSquares = shotsCoords b
+    shipSquares = concatMap shipPlacementToCoords (placements b)
 
 shipPlacementToCoords :: ShipPlacement -> [Coords]
 shipPlacementToCoords (shipDimensions -> (sx,sy), (cx,cy), dir) =

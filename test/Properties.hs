@@ -53,6 +53,22 @@ genShips dims = sized $ \n -> do
   k <- choose (1,1 `max` looped)
   rights <$> vectorOf k (genShip dims)
 
+-- TODO: I *think* this is where EitherT would be useful to bring in.
+genNewGameWithBoardDimensions :: B.Dimensions -> Gen (Either B.GameError B.Game)
+genNewGameWithBoardDimensions (w,h) = do
+  ships  <- genShips (w,h)
+  board1 <- genPlacedBoardOf (w,h) ships
+  board2 <- genPlacedBoardOf (w,h) ships
+  return $ do
+    b1 <- board1
+    b2 <- board2
+    B.mkGame (B.Player1,b1) (B.Player2,b2)
+
+genNewGame :: Gen (Either B.GameError B.Game)
+genNewGame = do
+  dims <- genBoardDimensions
+  genNewGameWithBoardDimensions dims
+
 
 -- Helpers
 
@@ -91,6 +107,15 @@ prop_ValidBoardsHaveAllShips =
         givenShips  = B.validShips b
         placedShips = map B.shipFromPlacement $ B.placements b
      in isRight eb ==> givenShips === placedShips
+
+
+prop_RepeatedAttack :: Property
+prop_RepeatedAttack =
+  forAll genNewGame $ \eg x y -> wrap $
+    let g           = fromRight eg
+        shotOnBoard = B.coordsInBounds (B.boardDimensions . B.board2 $ g) (x,y)
+     in isRight eg && shotOnBoard ==>
+        (B.attacksFromList g [(x,y), (1,1), (x,y)] === Left B.DuplicateShot)
 
 
 return [] -- What.
