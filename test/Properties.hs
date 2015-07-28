@@ -4,8 +4,8 @@ module Main where
 
 import qualified Data.Battleship      as B
 
+import           Control.Applicative
 import           Control.Monad.Random ( evalRand,mkStdGen )
-import           Data.Functor
 import           Data.Either          ( isRight,rights )
 import           Data.List.Unique     ( repeated )
 import           Test.QuickCheck
@@ -104,6 +104,11 @@ wrap = within 5000000
    - placeShip not overlapping existing piece or out of bounds is a Board with the new placement
 
  - mkGame
+   - mkGame with two players that are the same is Left DuplicatePlayers
+   - mkGame with a Board that doesn't have all its ships placed is Left BoardNotReady
+   - mkGame with two Boards that aren't the same size is Left MismatchedBoards.
+     (Much in the same way we allowsmismatched ship lists, we may want to allow mismatched boards as well.)
+   - Otherwise, mkGame produces a Game with two Players, two Boards, and the currentPlayer set to the Game's player1
 
  - attack
    - attack with a shot out of bounds is Left OutOfBoundsShot
@@ -128,13 +133,23 @@ prop_ValidBoardsHaveShipsPlacedInBounds =
         shipInBounds      = allCoordsInBounds . B.shipPlacementToCoords
      in isRight eb ==> all shipInBounds $ B.placements b
 
--- Ditto for overlapping ships.
+-- Same for overlapping ships.
 prop_ValidBoardsHaveNoOverlappingShips :: Property
 prop_ValidBoardsHaveNoOverlappingShips =
   forAll genPlacedBoard $ \eb -> wrap $
     let b               = fromRight eb
         allCoords       = concatMap B.shipPlacementToCoords
      in isRight eb ==> repeated (allCoords $ B.placements b) === []
+
+-- Have all the ships been placed on the Board?
+prop_ValidBoardsHaveAllShips :: Property
+prop_ValidBoardsHaveAllShips =
+  forAll genPlacedBoard $ \eb -> wrap $
+    let b           = fromRight eb
+        givenShips  = B.validShips b
+        placedShips = map B.shipFromPlacement $ B.placements b
+     in isRight eb ==> givenShips === placedShips
+
 
 prop_RepeatedAttack :: Property
 prop_RepeatedAttack =
