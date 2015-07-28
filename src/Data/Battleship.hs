@@ -4,8 +4,6 @@
 -- TODO: Break Board-, Ship- and Game-related functions out into their own modules;
 --       things are starting to get unwieldy names trying to make clear what they
 --       relate to.
--- TODO: Switch to (Either <SpecificErrorSumType> a) from all the Maybes; it's a
---       black box for users right now.
 -- TODO: Consider a different way of doing ShipPlacement without the terrible
 --       (_,x,_)-style matching to extract parts.
 -- TODO: Rewrite the history of these commits so nobody will find out that I'm
@@ -37,18 +35,22 @@ module Data.Battleship (
   -- Helpers (for tests, but still safe)
   defaultShips,
   defaultBoardDimensions,
-  shipsFromList,
-  boardLargeEnoughForShips,
-  placedBoardFromList,
   attacksFromList,
   boardFinished,
-  coordsInBoardBounds,
+  boardLargeEnoughForShips,
+  coordsInBounds,
+  placedBoardFromList,
+  shipPlacementToCoords,
+  shipsFromList,
 
-  -- HACK TODO: Exporting record fields is /not/ safe.
+  -- TODO: Exporting record fields is /not/ safe.
+  --       Need to rename fields to _foo, _barBaz, etc. and expose
+  --       "read-only" helpers that call the internal underscored versions.
   currentPlayer,
   board1,
   board2,
 
+  boardDimensions,
   placements,
   shots,
 
@@ -106,7 +108,7 @@ data Game  = Game {
 --         data Game  = InPlayGame | FinishedGame ...
 --       ... then only accepting an InPlayGame for attack and PlacedBoard for
 --       mkGame or something.
-data GameError = InvalidBoardDimensions Dimensions
+data GameError = InvalidBoardDimensions Dimensions [Ship]
                | InvalidShipDimensions Dimensions
                | InvalidInitial Char
                | InvalidName String
@@ -139,8 +141,8 @@ instance Show Board where
         | otherwise = maybe '·' (initial . shipFromPlacement) (findPlacement c)
 
 
--- One of the few cases I'd consider using a fromJust; this not working is a
--- border-line program bug.
+-- One of the few cases I'd consider using a fromJust; this not working is
+-- basically a program bug.
 defaultShips :: [Ship]
 defaultShips = either (const []) (id) $ shipsFromList
                  [ ("Carrier",    'C', (1,5))
@@ -165,8 +167,9 @@ mkShip n i d
   where
     vDims (x,y) = x > 0 && y > 0
 
--- TODO: Appears to hold up for everything I've tossed at it. Needs a property test,
---       but it's damn hard to come up with a generator producing non-overlapping ships.
+-- An inexpensive first-pass filter; later on, mkRandomBoard (for example) or some other
+-- board-placement function will end up doing a more accurate (but expensive) check as they
+-- attempt to place all the ships given to them.
 boardLargeEnoughForShips :: Dimensions -> [Ship] -> Bool
 boardLargeEnoughForShips (x,y) ships =
   (largestDim >= longestShip) && (x * y >= shipsArea)
@@ -180,13 +183,13 @@ boardLargeEnoughForShips (x,y) ships =
 mkEmptyBoard :: Dimensions -> [Ship] -> Either GameError Board
 mkEmptyBoard d s
   | null s                             = Left $ NoShips
-  | not (boardLargeEnoughForShips d s) = Left $ InvalidBoardDimensions d
+  | not (boardLargeEnoughForShips d s) = Left $ InvalidBoardDimensions d s
   | otherwise =
       Right Board { boardDimensions = d, placements = [], shots = [], validShips = s }
 
 mkRandomBoard :: MonadRandom m => Dimensions -> [Ship] -> m (Either GameError Board)
 mkRandomBoard dims ships = do
-  -- TODO: Learn how to use monad transformers. Use EitherT+MaybeT here.
+  -- TODO: Learn how to use monad transformers. Use EitherT here.
   either (\e -> return $ Left e)
          (\board -> findWith board)
          (mkEmptyBoard dims ships)
@@ -195,7 +198,7 @@ mkRandomBoard dims ships = do
       nb <- depthFirstGraphSearch ordering
                                   (\b -> length(placements(b)) == length(validShips(b)))
                                   (graph board)
-      return $ maybe (Left $ InvalidBoardDimensions dims) -- Arguably a bug in boardLargeEnoughForShips
+      return $ maybe (Left $ InvalidBoardDimensions dims ships) -- Arguably a bug in boardLargeEnoughForShips
                      (Right)
                      (nb)
     graph b = placementsGraph placementStep ships b
@@ -206,7 +209,7 @@ mkGame (p1,b1) (p2,b2)
   | p1 == p2             = Left $ DuplicatePlayers p1
   | incomplete b1        = Left $ BoardNotReady b1
   | incomplete b2        = Left $ BoardNotReady b2
-  | differingSizes b1 b2 = Left $ MismatchedBoards b1 b2 -- TODO: Is this a hard constraint?
+  | differingSizes b1 b2 = Left $ MismatchedBoards b1 b2 -- TODO: Is this a hard constraint of the game?
   | otherwise            = Right $ Game { currentPlayer = p1 -- Just default to the first, whatever it is.
                                         , player1 = p1
                                         , board1  = b1
@@ -245,10 +248,11 @@ placedBoardFromList = foldM placeShip
 
 attack :: Game -> Coords -> Either GameError Game
 attack g c
-  | not $ coordsInBoardBounds targetBoard c = Left $ OutOfBoundsShot c
-  | repeated c                              = Left DuplicateShot
-  | finished g                              = Left GameFinished
-  | otherwise                               = Right appendedShotAndSwappedPlayer
+  | not $ coordsInBounds (boardDimensions targetBoard) c
+                = Left $ OutOfBoundsShot c
+  | repeated c  = Left DuplicateShot
+  | finished g  = Left GameFinished
+  | otherwise   = Right appendedShotAndSwappedPlayer
   where
     appendedShotAndSwappedPlayer =
       player1Or2 (g { board2 = appendedShot, currentPlayer = player2 g })
@@ -265,8 +269,8 @@ attack g c
 attacksFromList :: Game -> [Coords] -> Either GameError Game
 attacksFromList = foldM attack
 
-coordsInBoardBounds :: Board -> Coords -> Bool
-coordsInBoardBounds (boardDimensions -> (bw,bh)) (cx,cy) =
+coordsInBounds :: Dimensions -> Coords -> Bool
+coordsInBounds (bw,bh) (cx,cy) =
   (cx >= 1) && (cx <= bw) &&
   (cy >= 1) && (cy <= bh)
 
