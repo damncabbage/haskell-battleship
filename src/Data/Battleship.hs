@@ -22,6 +22,7 @@ module Data.Battleship (
   -- Headlining Library Functions
   mkShip,
   mkEmptyBoard,
+  mkRandomBoard,
   placeShip,
 
   -- Helpers (for tests, but still safe)
@@ -54,6 +55,8 @@ import Data.Either            ( either,rights )
 import Data.Monoid            ( (<>),mconcat )
 import Data.List              ( any,concat,concatMap,elem,find,intersect,map,maximum,notElem,null,sum )
 import Control.Monad          ( Monad,foldM,return,sequence )
+import Control.Monad.Random   ( MonadRandom )
+import System.Random.Shuffle  ( shuffleM )
 import Text.Printf            ( printf )
 import Prelude                ( Bool,Char,Eq,Int,Show,String,Either(Left,Right)
                               , ($),(&&),(*),(+),(-),(.),(<),(<=),(==),(/=),(>),(>=),(||)
@@ -161,6 +164,23 @@ mkEmptyBoard d s
   | otherwise =
       Right Board { boardDimensions = d, placements = [], shots = [], validShips = s }
 
+mkRandomBoard :: MonadRandom m => Dimensions -> [Ship] -> m (Either GameError Board)
+mkRandomBoard dims ships = do
+  -- TODO: Learn how to use monad transformers. Use EitherT here.
+  either (\e -> return $ Left e)
+         (\board -> findWith board)
+         (mkEmptyBoard dims ships)
+  where
+    findWith board = do
+      nb <- depthFirstGraphSearch ordering
+                                  (\b -> length(placements(b)) == length(validShips(b)))
+                                  (graph board)
+      return $ maybe (Left $ InvalidBoardDimensions dims ships) -- Getting here shows a bug in boardLargeEnoughForShips
+                     (Right)
+                     (nb)
+    graph b = placementsGraph placementStep ships b
+    ordering = shuffleM
+
 placeShip :: Board -> ShipPlacement -> Either GameError Board
 placeShip b p
   | not $ placementInBounds (boardDimensions b) p = Left OutOfBoundsShip
@@ -204,3 +224,39 @@ shotsCoords = map fst . shots
 
 shipFromPlacement :: ShipPlacement -> Ship
 shipFromPlacement (ship,_,_) = ship
+
+
+-- Depth-first search bits
+data Graph a = Node a [Graph a]
+instance Show a => Show (Graph a) where
+  show (Node x []) = "Node " <> (show x) <> " []"
+  show (Node x _)  = "Node " <> (show x) <> " [...]"
+
+placementsGraph :: (b -> s -> [b]) -> [s] -> b -> Graph b
+placementsGraph _ []     b = Node b []
+placementsGraph f (s:ss) b = Node b (map (placementsGraph f ss) (f b s))
+
+placementStep :: Board -> Ship -> [Board]
+placementStep board ship =
+  rights $ map (placeShip board) permutations
+  where
+    (w,h) = boardDimensions board
+    permutations :: [ShipPlacement]
+    permutations = [(ship,(x,y),d) | d <- [Downward,Rightward], y <- [1..h], x <- [1..w]]
+
+-- A heavily-modified version of the dfs search from this post:
+-- https://monadmadness.wordpress.com/2014/11/10/purely-functional-graph-search-algorithms/
+depthFirstGraphSearch :: Monad m => ([Graph b] -> m [Graph b]) -> (b -> Bool) -> Graph b -> m (Maybe b)
+depthFirstGraphSearch ord pred (Node x xs)
+  | pred x    = return $ Just x
+  | null xs   = return $ Nothing
+  | otherwise = do
+      oxs <- ord xs
+      select (depthFirstGraphSearch ord pred) oxs
+  where
+    select _     []     = return Nothing
+    select check (b:bs) = do
+      cb <- (check b)
+      if isJust cb
+        then return cb
+        else select check bs

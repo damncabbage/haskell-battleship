@@ -59,3 +59,14 @@ main = hspec $ do
       map fst (B.shots . B.board2 $ finalGame) `shouldBe` p1Shots -- Check at least that the shot coords are recorded.
 
 
+  describe "boardLargeEnoughForShips" $ do
+    it "uses the longest ship and collective ship area to determine the minimum size" $ do
+      let ships = mkShips [ ("Carrier",    'C', (1,5))
+                          , ("Battleship", 'B', (1,4))
+                          , ("Submarine",  'S', (1,3))
+                          , ("Cruiser",    'R', (1,3))
+                          , ("Patrol",     'P', (1,2))
+                          ]
+      (B.boardLargeEnoughForShips (5,4) ships) `shouldBe` True
+      (B.boardLargeEnoughForShips (4,3) ships) `shouldBe` False
+      (B.boardLargeEnoughForShips (5,2) ships) `shouldBe` False
