@@ -30,3 +30,11 @@ $ cabal update; cabal install cabal-install
 $ cabal install --enable-tests
 $ cabal test
 ```
+
+## Notes
+
+There are two branches:
+* [master](https://github.com/damncabbage/haskell-battleship/tree/master) is the manicured history I'd use for a pull request.
+* [noodling](https://github.com/damncabbage/haskell-battleship/tree/noodling) is the amateurish fumbling progression I actually made as I gradually figured out which ends to hold of the various knives I needed to actually solve this exercise.
+
+There are a lot of `TODO` notes, particularly in the `test/Properties.hs` QuickCheck tests, above the unflattering repetition in `test/Spec.hs`, and near the type declarations in `src/Data/Battleship.hs` itself.

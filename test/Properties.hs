@@ -82,6 +82,48 @@ wrap = within 5000000
 
 -- Properties
 
+-- TODO:
+{-
+ - mkShip
+   - mkShip with <= 0 dimensions is Left InvalidShipDimensions
+   - mkShip with an invalid character is Left InvalidShipInitial
+   - mkShip with an empty name is Left InvalidShipName
+   - mkShip used via the generator is a Right Ship
+
+ - mkEmptyBoard
+   - mkEmptyBoard with no ships should be Left NoShips
+   - mkEmptyBoard with a dimension and set of ships not boardLargeEnoughForShips is Left InvalidBoardDimensions
+   - mkEmptyBoard with valid dimensions and ships is Right Board
+
+ - mkRandomBoard
+   - boardLargeEnough and mkRandomBoard should agree with each other.
+
+ - placeship
+   - placeShip overlapping existing piece is Left OverlapsPlacedShip
+   - placeShip with any shipPlacementToCoords resulting in a not-coordsInBounds item is Left OutOfBoundsShip
+   - placeShip not overlapping existing piece or out of bounds is a Board with the new placement
+
+ - mkGame
+   - mkGame with two players that are the same is Left DuplicatePlayers
+   - mkGame with a Board that doesn't have all its ships placed is Left BoardNotReady
+   - mkGame with two Boards that aren't the same size is Left MismatchedBoards.
+     (Much in the same way we allowsmismatched ship lists, we may want to allow mismatched boards as well.)
+   - Otherwise, mkGame produces a Game with two Players, two Boards, and the currentPlayer set to the Game's player1
+
+ - attack
+   - attack with a shot out of bounds is Left OutOfBoundsShot
+   - attack on a finished game is Left GameFinished
+   - A valid attack is a game with the shot recorded and the player swapped.
+
+ - finished
+   - Fire as many shots as there are squares on the Board; the Game should have been finished.
+   - A game with fewer shots for a player than there are coords for opposing ships is not finished.
+
+ - winner
+   - attacksFromList with Player1 firing shots that include the set of coords, and Player2 not, is Just Player1.
+   - A game that is not finished will is winner == Nothing
+-}
+
 -- If the generated board has been declared valid, then no ships should be out of bounds.
 prop_ValidBoardsHaveShipsPlacedInBounds :: Property
 prop_ValidBoardsHaveShipsPlacedInBounds =
