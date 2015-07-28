@@ -72,6 +72,9 @@ main = hspec $ do
       (B.boardLargeEnoughForShips (5,2) ships) `shouldBe` False
 
 
+  -- TODO: There is a lot of test-setup repetition in this section; a lot of these need to be turned into property tests
+  -- (see the list in test/Properties.hs).
+
   describe "placeShip" $ do
     let ships = mkShips [ ("AA", 'A', (1,5))
                         , ("BB", 'B', (2,4))

@@ -41,6 +41,7 @@ module Data.Battleship (
   coordsInBounds,
   placedBoardFromList,
   shipPlacementToCoords,
+  shipFromPlacement,
   shipsFromList,
 
   -- TODO: Exporting record fields is /not/ safe.
@@ -53,6 +54,7 @@ module Data.Battleship (
   boardDimensions,
   placements,
   shots,
+  validShips,
 
   name,
   initial,
