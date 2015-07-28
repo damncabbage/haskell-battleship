@@ -1,17 +1,17 @@
-# Battleship
+# Battleship ![](https://img.shields.io/badge/build-still%20to%20be%20set%20up-yellow.svg)
 
-An API for simulating a game of "Battleship"; see https://github.com/ambiata/interview/blob/master/battleship.md for the full description. Summarised:
+An API for simulating a game of "Battleship"; see https://github.com/ambiata/interview/blob/master/battleship.md for the full description. Summarised (in excerpts):
 
 > Maintain the state of a game of "Battleship", including four boards, two for each player, one for recording the current state of the players ships, and one for recording the players' attacks. We want to take care of the basic ability to control the game, and the players moves whilst keeping of track of this game state.
-> ...
+
 > A player knows:
 > * where their own ships are
 > * where their own previous attacking moves have been made, and their result
 > * where their opponent's previous attacking moves have been made and their result
-> ...
+
 > Each player should start the game with 5 ships, laid out in non-overlapping positions on their own board:
 > Carrier (1x5), Battleship (1x4), Submarine (1x3), Cruiser (1x2), Patrol (1x1)
-> ...
+
 > The minimal set of operations we want to support:
 > * Create an empty board.
 > * Place a ship on the board.
