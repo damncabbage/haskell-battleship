@@ -11,20 +11,39 @@
 
 module Data.Battleship (
   -- Types and (safe) constructors
+  Board,
+  Coords,
   Dimensions,
+  Direction(..),
   Ship,
+  ShipPlacement,
   GameError(..),
 
   -- Headlining Library Functions
   mkShip,
+  mkEmptyBoard,
+  placeShip,
 
   -- Helpers (for tests, but still safe)
   defaultShips,
+  defaultBoardDimensions,
+  attacksFromList,
+  boardFinished,
+  boardLargeEnoughForShips,
+  coordsInBounds,
+  placedBoardFromList,
+  shipPlacementToCoords,
+  shipFromPlacement,
   shipsFromList,
 
   -- TODO: Exporting record fields is /not/ safe.
   --       Need to rename fields to _foo, _barBaz, etc. and expose
   --       "read-only" helpers that call the internal underscored versions.
+  boardDimensions,
+  placements,
+  shots,
+  validShips,
+
   name,
   initial,
   shipDimensions
@@ -49,6 +68,15 @@ data Ship          = Ship {
                      } deriving(Show,Eq)
 
 type Dimensions    = (Int,Int)
+type Coords        = (Int,Int)
+type ShipPlacement = (Ship,Coords,Direction)
+
+data Board = Board {
+               boardDimensions :: Dimensions,
+               placements      :: [ShipPlacement],
+               shots           :: [(Coords,Result)],
+               validShips      :: [Ship]
+             } deriving(Eq)
 
 -- TODO: Consider splitting this into different groups; "preparatory" sort of
 --       errors, and "game errors".
@@ -59,10 +87,12 @@ type Dimensions    = (Int,Int)
 --         data Game  = InPlayGame | FinishedGame ...
 --       ... then only accepting an InPlayGame for attack and PlacedBoard for
 --       mkGame or something.
-data GameError =
-                 InvalidShipDimensions Dimensions
+data GameError = InvalidBoardDimensions Dimensions [Ship]
+               | InvalidShipDimensions Dimensions
                | InvalidShipInitial Char
                | InvalidShipName String
+               | OutOfBoundsShip
+               | NoShips
   deriving(Show,Eq)
 
 
@@ -77,6 +107,9 @@ defaultShips = either (const []) (id) $ shipsFromList
                  , ("Patrol",     'P', (1,2))
                  ]
 
+defaultBoardDimensions :: Dimensions
+defaultBoardDimensions = (10,10)
+
 shipsFromList :: [(String,Char,Coords)] -> Either GameError [Ship]
 shipsFromList = sequence . map (\(n,i,p) -> mkShip n i p)
 
@@ -89,3 +122,66 @@ mkShip n i d
   where
     vDims (x,y) = x > 0 && y > 0
 
+-- An inexpensive first-pass filter; later on, mkRandomBoard (for example) or some other
+-- board-placement function will end up doing a more accurate (but expensive) check as they
+-- attempt to place all the ships given to them.
+boardLargeEnoughForShips :: Dimensions -> [Ship] -> Bool
+boardLargeEnoughForShips (x,y) ships =
+  (largestDim >= longestShip) && (x * y >= shipsArea)
+  where
+    largestDim  = max x y
+    longestShip = (maximum . mconcat . map (pairToList . shipDimensions)) ships
+    shipsArea   = (sum . map (multList . pairToList . shipDimensions)) ships
+    multList    = foldr (*) 1
+    pairToList (a,b) = [a,b]
+
+mkEmptyBoard :: Dimensions -> [Ship] -> Either GameError Board
+mkEmptyBoard d s
+  | null s                             = Left $ NoShips
+  | not (boardLargeEnoughForShips d s) = Left $ InvalidBoardDimensions d s
+  | otherwise =
+      Right Board { boardDimensions = d, placements = [], shots = [], validShips = s }
+
+placeShip :: Board -> ShipPlacement -> Either GameError Board
+placeShip b p
+  | not $ placementInBounds (boardDimensions b) p = Left OutOfBoundsShip
+  | (any (overlapping p) (placements b))          = Left OverlapsPlacedShip
+  | otherwise = Right b { placements = placements b <> [p] }
+  where
+    placementInBounds (bw,bh) (shipDimensions -> (sx,sy), (cx,cy), dir) =
+      case dir of
+        Downward  -> cx > 0 && cy > 0 && cx + (sx - 1) <= bw && cy + (sy - 1) <= bh
+        Rightward -> cx > 0 && cy > 0 && cx + (sy - 1) <= bw && cy + (sx - 1) <= bh
+    overlapping p1 p2 =
+      let x1 = fst . topLeft
+          x2 = fst . bottomRight
+          y1 = snd . topLeft
+          y2 = snd . bottomRight
+      in (x1 p1 < x2 p2) && (x2 p1 > x1 p2) &&
+         (y1 p1 < y2 p2) && (y2 p1 > y1 p2)
+    topLeft (_,sp,_) = sp
+    bottomRight (shipDimensions -> (sx,sy), (cx,cy), dir) =
+      case dir of
+        Downward  -> (cx + sx, cy + sy)
+        Rightward -> (cx + sy, cy + sx)
+
+placedBoardFromList :: Board -> [ShipPlacement] -> Either GameError Board
+placedBoardFromList = foldM placeShip
+
+coordsInBounds :: Dimensions -> Coords -> Bool
+coordsInBounds (bw,bh) (cx,cy) =
+  (cx >= 1) && (cx <= bw) &&
+  (cy >= 1) && (cy <= bh)
+
+shipPlacementToCoords :: ShipPlacement -> [Coords]
+shipPlacementToCoords (shipDimensions -> (sx,sy), (cx,cy), dir) =
+  let cartesian xs ys = [(x,y) | x <- xs, y <- ys]
+  in case dir of
+    Downward  -> cartesian [cx..(cx+sx-1)] [cy..(cy+sy-1)]
+    Rightward -> cartesian [cx..(cx+sy-1)] [cy..(cy+sx-1)]
+
+shotsCoords :: Board -> [Coords]
+shotsCoords = map fst . shots
+
+shipFromPlacement :: ShipPlacement -> Ship
+shipFromPlacement (ship,_,_) = ship
