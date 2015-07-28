@@ -41,3 +41,4 @@ test-suite props
                      , battleship
                      , QuickCheck            == 2.*
                      , MonadRandom           >= 0.3 && < 0.5
+                     , Unique                == 0.1.*

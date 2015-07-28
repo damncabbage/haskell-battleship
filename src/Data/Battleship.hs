@@ -101,7 +101,7 @@ data Game  = Game {
 
 -- TODO: Consider splitting this into different groups; "preparatory" sort of
 --       errors, and "game errors".
---       BoardNotReady and GameFinished are arguably something that should be
+-- TODO: BoardNotReady and GameFinished are arguably something that should be
 --       covered by making playing-an-unready-game and playing-a-finished-game
 --       invalid by construction, eg.
 --         data Board = EmptyBoard | PlacedBoard | InPlayBoard | FinishedBoard ...
@@ -110,8 +110,8 @@ data Game  = Game {
 --       mkGame or something.
 data GameError = InvalidBoardDimensions Dimensions [Ship]
                | InvalidShipDimensions Dimensions
-               | InvalidInitial Char
-               | InvalidName String
+               | InvalidShipInitial Char
+               | InvalidShipName String
                | OutOfBoundsShip
                | NoShips
                | MismatchedBoards Board Board
@@ -123,6 +123,8 @@ data GameError = InvalidBoardDimensions Dimensions [Ship]
                | GameFinished
   deriving(Show,Eq)
 
+
+-- TODO: Boy, this is a mess.
 instance Show Board where
   show b =
     unlines $ ["", header] <> (map row [1..h])
@@ -161,8 +163,8 @@ shipsFromList = sequence . map (\(n,i,p) -> mkShip n i p)
 mkShip :: String -> Char -> (Int,Int) -> Either GameError Ship
 mkShip n i d
   | not $ vDims d        = Left $ InvalidShipDimensions d
-  | notElem i ['A'..'Z'] = Left $ InvalidInitial i
-  | length n <= 0        = Left $ InvalidName n
+  | notElem i ['A'..'Z'] = Left $ InvalidShipInitial i
+  | length n <= 0        = Left $ InvalidShipName n
   | otherwise            = Right $ Ship { name = n, initial = i, shipDimensions = d }
   where
     vDims (x,y) = x > 0 && y > 0
@@ -198,7 +200,7 @@ mkRandomBoard dims ships = do
       nb <- depthFirstGraphSearch ordering
                                   (\b -> length(placements(b)) == length(validShips(b)))
                                   (graph board)
-      return $ maybe (Left $ InvalidBoardDimensions dims ships) -- Arguably a bug in boardLargeEnoughForShips
+      return $ maybe (Left $ InvalidBoardDimensions dims ships) -- Getting here shows a bug in boardLargeEnoughForShips
                      (Right)
                      (nb)
     graph b = placementsGraph placementStep ships b

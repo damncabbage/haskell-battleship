@@ -7,6 +7,7 @@ import qualified Data.Battleship      as B
 import           Control.Monad.Random ( evalRand,mkStdGen )
 import           Data.Functor
 import           Data.Either          ( isRight,rights )
+import           Data.List.Unique     ( repeated )
 import           Test.QuickCheck
 import           TestHelper           ( fromRight )
 
@@ -74,20 +75,51 @@ genNewGame = do
 -- HACK TODO: There are, at the moment, some properties (eg. prop_RepeatedAttack)
 -- that hang. I think it might be mkRandomBoard doing a full traversal, but
 -- until I can dig into this and get profiling successfully compiled in, I'm
--- wrapping the problematic ones with a one-second timeout.
+-- wrapping the problematic ones with a five-second timeout.
 wrap :: Property -> Property
-wrap = within 1000000
+wrap = within 5000000
 
 
 -- Properties
 
 -- TODO:
--- - placeShip overlapping existing piece is nothing
--- - placeShip not overlapping existing piece is a board with the placement
--- - placeShip of a (Positive Int,Positive Int)-sized ship in a (..,..)-sized board where the ship is smaller than the board and the placement is between 1 and totalX - shipX and <ditto for *Y>.
--- - Fire as many shots as there are squares; game should be finished.
--- - boardLargeEnough and mkRandomBoard should agree with each other.
+{-
+ - mkShip
+   - mkShip with <= 0 dimensions is Left InvalidShipDimensions
+   - mkShip with an invalid character is Left InvalidShipInitial
+   - mkShip with an empty name is Left InvalidShipName
+   - mkShip used via the generator is a Right Ship
 
+ - mkEmptyBoard
+   - mkEmptyBoard with no ships should be Left NoShips
+   - mkEmptyBoard with a dimension and set of ships not boardLargeEnoughForShips is Left InvalidBoardDimensions
+   - mkEmptyBoard with valid dimensions and ships is Right Board
+
+ - mkRandomBoard
+   - boardLargeEnough and mkRandomBoard should agree with each other.
+
+ - placeship
+   - placeShip overlapping existing piece is Left OverlapsPlacedShip
+   - placeShip with any shipPlacementToCoords resulting in a not-coordsInBounds item is Left OutOfBoundsShip
+   - placeShip not overlapping existing piece or out of bounds is a Board with the new placement
+
+ - mkGame
+
+ - attack
+   - attack with a shot out of bounds is Left OutOfBoundsShot
+   - attack on a finished game is Left GameFinished
+   - A valid attack is a game with the shot recorded and the player swapped.
+
+ - finished
+   - Fire as many shots as there are squares on the Board; the Game should have been finished.
+   - A game with fewer shots for a player than there are coords for opposing ships is not finished.
+
+ - winner
+   - attacksFromList with Player1 firing shots that include the set of coords, and Player2 not, is Just Player1.
+   - A game that is not finished will is winner == Nothing
+-}
+
+-- If the generated board has been declared valid, then no ships should be out of bounds.
 prop_ValidBoardsHaveShipsPlacedInBounds :: Property
 prop_ValidBoardsHaveShipsPlacedInBounds =
   forAll genPlacedBoard $ \eb -> wrap $
@@ -96,12 +128,13 @@ prop_ValidBoardsHaveShipsPlacedInBounds =
         shipInBounds      = allCoordsInBounds . B.shipPlacementToCoords
      in isRight eb ==> all shipInBounds $ B.placements b
 
-prop_Derp :: Property
-prop_Derp =
-  forAll genDerp $ \x -> wrap $
-    ((length x) `mod` (2 :: Int) == 0) ==> x === x
-  where
-    genDerp = listOf1 $ elements [1 :: Int]
+-- Ditto for overlapping ships.
+prop_ValidBoardsHaveNoOverlappingShips :: Property
+prop_ValidBoardsHaveNoOverlappingShips =
+  forAll genPlacedBoard $ \eb -> wrap $
+    let b               = fromRight eb
+        allCoords       = concatMap B.shipPlacementToCoords
+     in isRight eb ==> repeated (allCoords $ B.placements b) === []
 
 prop_RepeatedAttack :: Property
 prop_RepeatedAttack =
