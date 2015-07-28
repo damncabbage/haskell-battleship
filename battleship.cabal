@@ -21,7 +21,7 @@ library
                      , random-shuffle        >= 0.0.4 && < 0.1
                      , MonadRandom           >= 0.3 && < 0.5
 
-test-suite spec
+test-suite specs
   default-language:    Haskell2010
   type:                exitcode-stdio-1.0
   ghc-options:         -Wall
@@ -30,5 +30,14 @@ test-suite spec
   build-depends:       base                  >= 4.7 && < 4.8
                      , battleship
                      , hspec                 >= 1.8 && < 3
+
+test-suite props
+  default-language:    Haskell2010
+  type:                exitcode-stdio-1.0
+  ghc-options:         -Wall
+  hs-source-dirs:      test
+  main-is:             Properties.hs
+  build-depends:       base                  >= 4.7 && < 4.8
+                     , battleship
                      , QuickCheck            == 2.*
                      , MonadRandom           >= 0.3 && < 0.5
