@@ -96,6 +96,25 @@ data GameError = InvalidBoardDimensions Dimensions [Ship]
   deriving(Show,Eq)
 
 
+-- TODO: Boy, this is a mess.
+instance Show Board where
+  show b =
+    unlines $ ["", header] <> (map row [1..h])
+    where
+      (w,h)       = boardDimensions b
+      itemWidth d = 1 + (length $ show d)
+      item d      = printf ("%-" <> (show $ itemWidth d) <> "s")
+      tlPadding   = replicate (itemWidth h) ' '
+      header      = tlPadding <> (concatMap (item w . show) [1..w])
+      row y       = concat [item h (show y), (concatMap (\x -> cellItem (x,y)) [1..w])]
+      cellItem c  = item w [cell c]
+      findPlacement c =
+        find (elem c . shipPlacementToCoords) (placements b)
+      cell c
+        | elem c (shotsCoords b) = 'x'
+        | otherwise = maybe '·' (initial . shipFromPlacement) (findPlacement c)
+
+
 -- One of the few cases I'd consider using a fromJust; this not working is
 -- basically a program bug.
 defaultShips :: [Ship]
